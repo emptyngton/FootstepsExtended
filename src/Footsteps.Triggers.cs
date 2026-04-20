@@ -60,6 +60,16 @@ namespace SPQR
             bool isRight = senderName == "rFoot" || senderName == "rToe" || senderName == "rBigToe";
             if (isRight ? rightClock > 0f : leftClock > 0f) return;
 
+            // Global anti-double-fire gap. Tiny gate (~0.1s default) that
+            // absorbs Unity's same-frame ripple collisions without affecting
+            // normal walking. First foot through wins the frame; the other
+            // foot's identical-frame echo collision bails here.
+            if (globalClock > 0f)
+            {
+                Debug("ObserveTrigger: bailed (global step gap " + globalClock.ToString("F2") + "s left)");
+                return;
+            }
+
             // Velocity gate. Log near-misses (level > 0 but below min) so users
             // can see "I almost stepped, lower Impact Min" — but skip the
             // zero-energy noise from limbs in resting contact.
@@ -134,6 +144,10 @@ namespace SPQR
                 leftClock = jfloat2.val;
                 FlashIndicator(leftFootIndicator);
             }
+
+            // Arm the global anti-double-fire gap so the other foot's echo
+            // collision (same physics frame) doesn't sneak through.
+            globalClock = minStepGap.val;
         }
 
         void Trigger()      { myEventTrigger.Trigger(); }

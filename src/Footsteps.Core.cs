@@ -26,12 +26,21 @@ namespace SPQR
         // stomp) needs both feet to fire, not just one. The "Cooldown" slider
         // sets the per-foot cooldown duration; the leftClock/rightClock fields
         // tick down independently in Update().
+        //
+        // On top of the per-foot clocks, a SHORT global gap (minStepGap,
+        // default 0.1s) prevents two foot sounds from firing in the same
+        // frame — Unity sometimes spits out ripple collisions where one
+        // impact triggers a ghost collision on the other foot in the same
+        // physics step. The global gap absorbs that engine noise without
+        // affecting normal walking cadence.
         JSONStorableFloat treshold1;
         JSONStorableFloat treshold2;
         JSONStorableFloat jfloat2;
+        JSONStorableFloat minStepGap;
         float collisionCooldown = 0.3f;
-        float leftClock = -1.0f;
-        float rightClock = -1.0f;
+        float leftClock   = -1.0f;
+        float rightClock  = -1.0f;
+        float globalClock = -1.0f;
 
         // Audio knobs surfaced to the user. Read on every PlayOneShot so
         // slider moves take effect on the next step without a callback.
@@ -223,6 +232,15 @@ namespace SPQR
             RegisterFloat(jfloat2);
             CreateSlider(jfloat2, true);
 
+            // Global anti-double-fire gap. Tiny by design (0.1s default) — just
+            // enough to swallow Unity's same-frame ripple collisions. Going
+            // larger turns it into a global cooldown that defeats the per-foot
+            // independence; going to 0 disables it.
+            minStepGap = new JSONStorableFloat("Min Step Gap", 0.1f, BlendCallback, 0f, 0.5f, true);
+            minStepGap.storeType = JSONStorableParam.StoreType.Full;
+            RegisterFloat(minStepGap);
+            CreateSlider(minStepGap, true);
+
             // --- Trigger panels (right column) ---
             myEventTrigger = new EventTrigger(this, "TriggerOnUpdate");
             Utils.SetupButton(this, "Trigger On Step", myEventTrigger.OpenPanel, true);
@@ -300,10 +318,12 @@ namespace SPQR
             myEventTriggerLeft.Update();
             myEventTriggerRight.Update();
 
-            // Tick down both per-foot cooldowns independently. Stop decrementing
-            // once a clock hits 0 so it doesn't drift arbitrarily negative.
-            if (leftClock > 0f)  leftClock  -= Time.deltaTime;
-            if (rightClock > 0f) rightClock -= Time.deltaTime;
+            // Tick down per-foot cooldowns + the global anti-double-fire gap.
+            // Stop decrementing once a clock hits 0 so it doesn't drift
+            // arbitrarily negative.
+            if (leftClock > 0f)   leftClock   -= Time.deltaTime;
+            if (rightClock > 0f)  rightClock  -= Time.deltaTime;
+            if (globalClock > 0f) globalClock -= Time.deltaTime;
         }
 
         public bool IsDisabled()
