@@ -6,7 +6,7 @@ A footstep audio plugin for [Virt-a-Mate](https://virtamate.com/). Detects when 
 
 ## Features
 
-- **24 built-in surfaces** — boots, barefoot, socks, sneak, bootsfly, carpet, concrete, dirt, grass, gravel, gritty, hard, heels (×4), ice, squeaky, step, wood (×3), and more
+- **24 built-in surfaces** — boots, barefoot, socks, sneak, carpet, concrete, dirt, grass, gravel, gritty, hard, heels (×5), ice, squeaky, step, wood (×3), and more
 - **Per-foot audio sources** — Unity `AudioSource` components attached directly to the `lFoot` / `rFoot` rigidbodies. No scene clutter, no extra atoms to clean up
 - **3D spatial audio** — sounds play from the foot's actual position with proper distance falloff
 - **Pitch jitter** — small random pitch variation (default ±15%) per step so repeated samples don't sound mechanically identical

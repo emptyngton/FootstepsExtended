@@ -16,10 +16,10 @@ Modified by Lapiro, 2026. Changes from the upstream v2 release:
   - Added four new footstep sound categories to the `sounds` dictionary:
       * sneak     (20 samples)
       * Socks     (18 samples)
-      * bootsfly  (24 samples)
+      * heels5    (24 samples)
       * barefoot  (11 samples)
   - Added matching audio sample files for each new category under
-    Custom/Sounds/FootstepsSFX/{sneak,Socks,bootsfly,barefoot}/.
+    Custom/Sounds/FootstepsSFX/{sneak,Socks,heels5,barefoot}/.
   - Renamed the audio asset folder from "Aeternum/footsteps/" to
     "FootstepsSFX/" so this fork's audio doesn't collide with the
     upstream SPQR.Footsteps .var if both are installed at once.
