@@ -1,0 +1,90 @@
+name: Release
+
+# Fires when a semver tag is pushed (e.g., v0.1.0). The VaM package version is read from
+# .github/VAM_VERSION — bump that file before tagging so each release gets a unique number.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # Needed to create a GitHub Release and upload the .var asset
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout at tag
+        uses: actions/checkout@v4
+
+      - name: Read VaM package version
+        id: vam
+        run: |
+          VERSION=$(cat .github/VAM_VERSION)
+          if ! [[ "$VERSION" =~ ^[0-9]+$ ]]; then
+            echo "::error::.github/VAM_VERSION must contain a single integer. Got: '$VERSION'"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building Lapiro.FootstepsExtended.$VERSION.var"
+
+      - name: Build .var
+        run: |
+          VER="${{ steps.vam.outputs.version }}"
+          STAGE=$(mktemp -d)
+
+          # Plugin source (cslist + src/ + LICENSE) under Custom/Scripts/Lapiro/FootstepsExtended/
+          PLUGIN_DIR="$STAGE/Custom/Scripts/Lapiro/FootstepsExtended"
+          mkdir -p "$PLUGIN_DIR"
+          cp -r src Footsteps.cslist LICENSE "$PLUGIN_DIR/"
+
+          # Audio assets under Custom/Sounds/FootstepsSFX/ (matches the path
+          # the plugin code resolves at runtime via Utils.GetPackagePath +
+          # SoundsRoot — see Footsteps.Audio.cs).
+          mkdir -p "$STAGE/Custom/Sounds"
+          cp -r Sounds/FootstepsSFX "$STAGE/Custom/Sounds/"
+
+          # meta.json at the .var root
+          cp .github/meta.template.json "$STAGE/meta.json"
+
+          cd "$STAGE"
+          # Zip with forward-slash entry paths (ZIP spec + VaM compatibility).
+          zip -r "$GITHUB_WORKSPACE/Lapiro.FootstepsExtended.$VER.var" . -x "*.DS_Store"
+
+          echo ""
+          echo "=== .var size ==="
+          ls -lh "$GITHUB_WORKSPACE/Lapiro.FootstepsExtended.$VER.var"
+          echo ""
+          echo "=== .var contents (first 30 entries) ==="
+          unzip -l "$GITHUB_WORKSPACE/Lapiro.FootstepsExtended.$VER.var" | head -35
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ github.ref_name }} — VaM package #${{ steps.vam.outputs.version }}"
+          files: Lapiro.FootstepsExtended.*.var
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            **FootstepsExtended** is a footstep audio plugin for Virt-A-Mate Person atoms. Detects when feet contact surfaces and plays surface-appropriate sound samples — boots on wood, bare feet on carpet, heels on tile, etc.
+
+            > Original *Footsteps* plugin and audio samples by **SPQR** (CC BY 4.0). This package is a rework.
+
+            ## Features
+
+            - 24 built-in surfaces with hundreds of audio samples
+            - Per-foot Unity AudioSources with proper 3D spatial positioning
+            - Pitch jitter for sample variety; volume / pitch / spatial-blend sliders
+            - Independent per-foot cooldowns + a global anti-double-fire guard
+            - Auto-discovery — drop your own `.wav` files into any surface folder, or create new surface folders, no code changes needed
+            - Live per-foot step indicators + Test Left / Test Right buttons
+            - EventTrigger panels for wiring custom VaM actions to step events
+            - Verbose timestamped debug log (toggleable) for troubleshooting
+
+            ## Install
+
+            Download **`Lapiro.FootstepsExtended.${{ steps.vam.outputs.version }}.var`** below and drop it into your VaM `AddonPackages/` folder.
+
+            Load on a Person atom: **Plugins tab → Add Plugin → Lapiro.FootstepsExtended → Footsteps.cslist**. Pick a surface from the **Sounds** dropdown, then walk the character (or click **Test Left** / **Test Right** to verify it works).
+
+            ---
