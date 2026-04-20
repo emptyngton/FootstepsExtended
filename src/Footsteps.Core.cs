@@ -150,7 +150,14 @@ namespace SPQR
             variableThisElement.storeType = JSONStorableParam.StoreType.Full;
             RegisterString(variableThisElement);
 
-            variableColliderGroup = new JSONStorableString("Collider Group", "Slate|Floor|WoodPanel|ReflectiveSlate|ReflectiveWoodPanel", UpdateVarValue);
+            // Collider Group filter is empty by default — matches any atom
+            // type. SPQR's original default ("Slate|Floor|WoodPanel|...") was
+            // exact-match against the parent atom's TYPE, which broke the
+            // common case of a panel wrapped inside an Empty parent atom or
+            // a Subscene (the wrapper's type is "Empty"/"SubScene", not
+            // "WoodPanel"). Users can opt back into restriction by typing
+            // pipe-separated atom types here.
+            variableColliderGroup = new JSONStorableString("Collider Group", "", UpdateVarValue);
             variableColliderGroup.storeType = JSONStorableParam.StoreType.Full;
             RegisterString(variableColliderGroup);
 

@@ -27,24 +27,35 @@ namespace SPQR
             Debug("RefreshColliders: subscribed to " + subscribed + " rigidbodies");
         }
 
-        // Per-collision handler. Walks the colliding hierarchy to find the owning
-        // Atom (so we can filter by atom name/type), then forwards to RaeClickTouch
-        // if the impact's relative-velocity magnitude is within the configured
-        // [Impact Min, Impact Max] window. `myClock` is the post-step cooldown gate.
+        // Per-collision handler. The Person atom subscribes ObserveTrigger to
+        // EVERY rigidbody (~30 of them), so this fires constantly from limbs
+        // bumping each other. Keep the cheap filters at the top so most calls
+        // bail before we do any parent-walking or logging.
         void ObserveTrigger(object sender, TriggerEventArgs e)
         {
-            if (myClock > 0f) { Debug("ObserveTrigger: bailed (cooldown active, " + myClock.ToString("F2") + "s left)"); return; }
+            if (myClock > 0f) return;
             if (e.evtType != customevent.EventType.HIT) return;
             if (e.insideTrigger) return;
 
+            // Cheapest filter first: only foot rigidbodies are interesting. This
+            // drops the firehose of thigh/shin/arm self-collisions silently,
+            // without spamming the debug log.
+            string senderName = sender.ToString().Replace(" (customevent.TriggerCollide)", "");
+            if (variableThisElements.Length > 0 && Array.IndexOf(variableThisElements, senderName) == -1)
+                return;
+
+            // Velocity gate. Log near-misses (level > 0 but below min) so users
+            // can see "I almost stepped, lower Impact Min" — but skip the
+            // zero-energy noise from limbs in resting contact.
             float level = e.collision.relativeVelocity.magnitude / 3.0f;
             if (level <= treshold1.val || level >= treshold2.val)
             {
-                Debug("ObserveTrigger: bailed (level " + level.ToString("F2") + " outside [" + treshold1.val.ToString("F2") + ".." + treshold2.val.ToString("F2") + "])");
+                if (level > 0.01f)
+                    Debug("ObserveTrigger: bailed (level " + level.ToString("F2") + " outside [" + treshold1.val.ToString("F2") + ".." + treshold2.val.ToString("F2") + "])");
                 return;
             }
 
-            // Find the owning Atom by walking parents from the colliding GameObject.
+            // Expensive: walk parents to find the owning Atom of the OTHER side.
             Atom parent = null;
             foreach (var component in e.collider.gameObject.GetComponentsInParent<Component>())
             {
@@ -53,8 +64,8 @@ namespace SPQR
             }
 
             // Identify the *other* atom by matching its first rigidbody to the
-            // attachedRigidbody of the collision. This is a workaround for the
-            // collider's own GameObject not always carrying the Atom reference.
+            // attachedRigidbody of the collision. Fallback for cases where the
+            // collider's own GameObject doesn't carry the Atom reference.
             string found = "";
             var RB = e.collider.attachedRigidbody;
             foreach (var xatom in SuperController.singleton.GetAtoms())
@@ -72,23 +83,20 @@ namespace SPQR
             if (e.collision.contacts.Count() > 0)
                 xcollider = e.collision.contacts[0].otherCollider.attachedRigidbody.name;
 
-            Debug("ObserveTrigger: hit sender='" + sender + "' other='" + xname + "' type='" + xtype + "' collider='" + xcollider + "' level=" + level.ToString("F2"));
-            RaeClickTouch(sender.ToString(), xname, xtype, xcollider);
+            // Drop self-collisions (foot brushed our own knee/thigh) silently.
+            if (xname == containingAtom.name) return;
+
+            Debug("ObserveTrigger: hit sender='" + senderName + "' other='" + xname + "' type='" + xtype + "' collider='" + xcollider + "' level=" + level.ToString("F2"));
+            RaeClickTouch(senderName, xname, xtype, xcollider);
         }
 
-        // Apply user-configured filters, then fire the appropriate side trigger
-        // and play a sound. The sender string carries TriggerCollide's component
-        // signature suffix; strip it so the rigidbody name compares cleanly.
+        // Apply the OTHER-side filters (atom type / atom name / collider name),
+        // route to the appropriate side, fire the EventTriggers, play sound.
+        // Sender filter and self-collision are already handled by ObserveTrigger.
         void RaeClickTouch(string sender, string name, string type, string collider)
         {
             if (IsDisabled()) { Debug("RaeClickTouch: bailed (plugin disabled)"); return; }
-            sender = sender.Replace(" (customevent.TriggerCollide)", "");
 
-            // Don't trigger on self-collisions (e.g. foot-to-leg).
-            if (name == containingAtom.name) { Debug("RaeClickTouch: bailed (self-collision)"); return; }
-
-            if (variableThisElements.Length > 0 && Array.IndexOf(variableThisElements, sender) == -1)
-            { Debug("RaeClickTouch: bailed (sender '" + sender + "' not in Element filter)"); return; }
             if (variableColliderGroups.Length > 0 && Array.IndexOf(variableColliderGroups, type) == -1)
             { Debug("RaeClickTouch: bailed (other-type '" + type + "' not in Collider Group filter)"); return; }
             if (variableColliderIds.Length > 0 && Array.IndexOf(variableColliderIds, name) == -1)
