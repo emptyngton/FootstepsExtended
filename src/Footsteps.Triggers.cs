@@ -111,7 +111,7 @@ namespace SPQR
             Trigger();
             TriggerLeft();
             if (soundChooser.val == "None") return;
-            RaeSound(GetIdFootstepsLeft(), GetRandomSound());
+            PlayFootSound(leftFootAudio, GetRandomSound());
         }
 
         void FootstepsRight()
@@ -119,7 +119,7 @@ namespace SPQR
             Trigger();
             TriggerRight();
             if (soundChooser.val == "None") return;
-            RaeSound(GetIdFootstepsRight(), GetRandomSound());
+            PlayFootSound(rightFootAudio, GetRandomSound());
         }
 
         // Flash the indicator green for 0.33s, then revert to red.

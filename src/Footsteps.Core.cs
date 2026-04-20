@@ -11,32 +11,45 @@ namespace SPQR
     public partial class Footsteps : MVRScript
     {
         // Identity of the Person atom this plugin instance is attached to.
-        // Cached at Init and re-synced on atom rename so the spawned audio-source
-        // child atoms ("<person>.footsteps.left/right") can be tracked.
+        // Cached at Init and re-synced on atom rename so the EventTrigger
+        // panels keep their references to this atom valid.
         string atomid;
 
-        // Two side-specific child AudioSource atoms get spawned next to the feet
-        // and parent-linked in FootstepsInit; these triggers fire when a step is
-        // detected so users can hook custom behaviour from the trigger panel.
+        // EventTrigger panels exposed on the right column. Users can wire
+        // arbitrary VaM actions to fire whenever a step is detected.
         EventTrigger myEventTrigger;       // any step
         EventTrigger myEventTriggerLeft;   // left-foot step
         EventTrigger myEventTriggerRight;  // right-foot step
 
-        // Step-detection thresholds and cooldown. Cooldown gates `myClock`
-        // so we don't fire twice per heel-strike when the foot rebounds.
+        // Step-detection thresholds and post-step cooldown gate (`myClock`
+        // counts down so we don't fire twice per heel-strike when the foot
+        // rebounds against the floor).
         JSONStorableFloat treshold1;
         JSONStorableFloat treshold2;
         JSONStorableFloat jfloat2;
         float collisionCooldown = 0.5f;
         float myClock = -1.0f;
 
-        // The currently selected sound surface ("None" / "boots" / "carpet" / ...).
+        // Audio knobs surfaced to the user. Read on every PlayOneShot so
+        // slider moves take effect on the next step without a callback.
+        JSONStorableFloat volume;        // [0..2]
+        JSONStorableFloat pitch;         // [0.5..2]
+        JSONStorableFloat pitchJitter;   // [0..0.3] — random ± fraction applied per step
+        JSONStorableFloat spatialBlend;  // [0..1] — 0=stereo, 1=fully 3D-positioned at the foot
+
+        // Unity AudioSource components attached directly to the lFoot / rFoot
+        // rigidbody GameObjects in AttachFootAudioSources(). Destroyed in
+        // OnDestroy so we don't leak components into the scene.
+        AudioSource leftFootAudio;
+        AudioSource rightFootAudio;
+
+        // Currently selected sound surface ("None" / "boots" / "carpet" / ...).
         JSONStorableStringChooser soundChooser;
 
-        // Map of surface name -> number of audio samples shipped for that surface.
-        // Used both to populate the dropdown in Init and to randomise sample
-        // selection at play time. Numbers must match what's actually under
-        // Custom/Sounds/FootstepsSFX/<key>/<key> (N).wav.
+        // Map of surface name -> number of audio samples shipped for that
+        // surface. Used both to populate the dropdown in Init and to randomise
+        // sample selection at play time. Numbers must match what's actually
+        // under Custom/Sounds/FootstepsSFX/<key>/<key> (N).wav.
         Dictionary<string, int> sounds = new Dictionary<string, int>(){
             {"sneak", 20},
             {"Socks", 18},
@@ -81,11 +94,6 @@ namespace SPQR
         JSONStorableString collisionsPreview;
         UIDynamicTextField dtext4;
 
-        // Set true once FootstepsInit has spawned the two child AudioSource atoms.
-        // UpdateSecond() retries until this flips, so a freshly-loaded scene
-        // self-heals if the atoms aren't present yet at plugin Init time.
-        bool initiated = false;
-
         public override void Init()
         {
             if (containingAtom == null || containingAtom.type != "Person")
@@ -120,7 +128,7 @@ namespace SPQR
             Utils.SetupSpacer(this, 10, false);
             Utils.SetupSpacer(this, 10, true);
 
-            // --- Sound surface picker ---
+            // --- Sound surface picker (left column) ---
             List<string> choices = new List<string>();
             choices.Add("None");
             foreach (var item in sounds)
@@ -150,7 +158,28 @@ namespace SPQR
 
             Utils.SetupSpacer(this, 66, false);
 
-            // --- Sliders (right column) ---
+            // --- Audio sliders (right column) ---
+            volume = new JSONStorableFloat("Volume", 1f, BlendCallback, 0f, 2f, true);
+            volume.storeType = JSONStorableParam.StoreType.Full;
+            RegisterFloat(volume);
+            CreateSlider(volume, true);
+
+            pitch = new JSONStorableFloat("Pitch", 1f, BlendCallback, 0.5f, 2f, true);
+            pitch.storeType = JSONStorableParam.StoreType.Full;
+            RegisterFloat(pitch);
+            CreateSlider(pitch, true);
+
+            pitchJitter = new JSONStorableFloat("Pitch Jitter", 0.05f, BlendCallback, 0f, 0.3f, true);
+            pitchJitter.storeType = JSONStorableParam.StoreType.Full;
+            RegisterFloat(pitchJitter);
+            CreateSlider(pitchJitter, true);
+
+            spatialBlend = new JSONStorableFloat("Spatial Blend", 1f, BlendCallback, 0f, 1f, true);
+            spatialBlend.storeType = JSONStorableParam.StoreType.Full;
+            RegisterFloat(spatialBlend);
+            CreateSlider(spatialBlend, true);
+
+            // --- Collision sliders (right column) ---
             treshold1 = new JSONStorableFloat("Impact Min", 0.05f, BlendCallback, 0f, 10f, true);
             treshold1.storeType = JSONStorableParam.StoreType.Full;
             RegisterFloat(treshold1);
@@ -192,8 +221,8 @@ namespace SPQR
 
         void Start()
         {
-            InvokeRepeating("UpdateSecond", 1f, 1f);
             RefreshColliders();
+            AttachFootAudioSources();
         }
 
         void Update()
@@ -205,13 +234,6 @@ namespace SPQR
                 return;
 
             myClock -= Time.deltaTime;
-        }
-
-        void UpdateSecond()
-        {
-            if (IsDisabled()) return;
-            if (!initiated)
-                FootstepsInit();
         }
 
         public bool IsDisabled()
@@ -248,9 +270,10 @@ namespace SPQR
             OnDisable();
         }
 
-        // Keep the spawned audio-source child atoms in sync when the user renames
-        // the host Person atom; otherwise their UIDs go stale and FootstepsInit
-        // would spawn a second pair instead of finding the existing ones.
+        // Just keep the EventTrigger panels' atom-name caches fresh and update
+        // the collider-id filter field if it pointed at the renamed atom. No
+        // child atoms to rename anymore — the audio sources are Unity components
+        // on the foot rigidbodies, not separate atoms.
         void OnAtomRename(string oldid, string newid)
         {
             myEventTrigger.SyncAtomNames();
@@ -258,16 +281,8 @@ namespace SPQR
             myEventTriggerRight.SyncAtomNames();
             if (variableColliderId.val == oldid)
                 variableColliderId.val = newid;
-
-            if (atomid != oldid) return;
-            atomid = newid;
-
-            var leftatom = SuperController.singleton.GetAtomByUid(oldid + ".footsteps.left");
-            var rightatom = SuperController.singleton.GetAtomByUid(oldid + ".footsteps.right");
-            if (leftatom != null)
-                SuperController.singleton.RenameAtom(leftatom, newid + ".footsteps.left");
-            if (rightatom != null)
-                SuperController.singleton.RenameAtom(rightatom, newid + ".footsteps.right");
+            if (atomid == oldid)
+                atomid = newid;
         }
 
         public override JSONClass GetJSON(bool includePhysical = true, bool includeAppearance = true, bool forceStore = false)
@@ -297,12 +312,16 @@ namespace SPQR
         void OnDestroy()
         {
             SuperController.singleton.onAtomUIDRenameHandlers -= OnAtomRename;
-            CancelInvoke();
             Utils.OnDestroyUI();
             OnDisable();
             myEventTrigger.Remove();
             myEventTriggerLeft.Remove();
             myEventTriggerRight.Remove();
+
+            // Strip the AudioSource components we added so the foot GameObjects
+            // are left exactly as we found them.
+            if (leftFootAudio != null)  Destroy(leftFootAudio);
+            if (rightFootAudio != null) Destroy(rightFootAudio);
         }
     }
 }

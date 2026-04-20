@@ -1,5 +1,4 @@
-using System;
-using System.Collections;
+using UnityEngine;
 using Random2 = UnityEngine.Random;
 using MacGruber;
 
@@ -9,89 +8,56 @@ namespace SPQR
     {
         const string SoundsRoot = "Custom/Sounds/FootstepsSFX/";
 
-        string GetIdFootstepsLeft()  { return containingAtom.uid + ".footsteps.left"; }
-        string GetIdFootstepsRight() { return containingAtom.uid + ".footsteps.right"; }
+        // ---------------------------------------------------------------------
+        // AudioSource attachment
+        // ---------------------------------------------------------------------
+        // We add a Unity AudioSource component directly to the lFoot/rFoot
+        // rigidbodies' GameObjects rather than spawning external AudioSource
+        // atoms. Cleaner: no scene clutter, no atom-UID rename juggling, and
+        // OnDestroy just calls Destroy() on the components.
 
-        // Spawn the two child AudioSource atoms ("<person>.footsteps.left/right")
-        // and parent-link them to the foot rigidbodies. Idempotent — only spawns
-        // atoms that don't already exist, so multiple Init/UpdateSecond passes
-        // won't duplicate them.
-        void FootstepsInit()
+        void AttachFootAudioSources()
         {
-            try
+            foreach (var rb in containingAtom.GetComponentsInChildren<Rigidbody>())
             {
-                var leftId = GetIdFootstepsLeft();
-                var rightId = GetIdFootstepsRight();
-                if (SuperController.singleton.GetAtomByUid(leftId) == null)
-                    StartCoroutine(CoroutineCreateAtomLeft(leftId));
-                if (SuperController.singleton.GetAtomByUid(rightId) == null)
-                    StartCoroutine(CoroutineCreateAtomRight(rightId));
+                if (rb.name == "lFoot") leftFootAudio  = ConfigureFootAudio(rb.gameObject);
+                else if (rb.name == "rFoot") rightFootAudio = ConfigureFootAudio(rb.gameObject);
             }
-            catch
-            {
-            }
-            initiated = true;
         }
 
-        IEnumerator CoroutineCreateAtomLeft(string atomid)
+        AudioSource ConfigureFootAudio(GameObject host)
         {
-            yield return SuperController.singleton.AddAtomByType("AudioSource", atomid);
-            FreeControllerV3 lController = containingAtom.GetStorableByID("lFootControl") as FreeControllerV3;
-            FootstepsAlign(atomid, lController, "lFoot");
+            var src = host.AddComponent<AudioSource>();
+            src.spatialize = true;
+            src.playOnAwake = false;
+            // spatialBlend / pitch / volume are applied per-PlayOneShot, so the
+            // user-facing sliders take effect on the very next step without a
+            // dedicated setCallbackFunction wired to each slider.
+            return src;
         }
 
-        IEnumerator CoroutineCreateAtomRight(string atomid)
-        {
-            yield return SuperController.singleton.AddAtomByType("AudioSource", atomid);
-            FreeControllerV3 rController = containingAtom.GetStorableByID("rFootControl") as FreeControllerV3;
-            FootstepsAlign(atomid, rController, "rFoot");
-        }
-
-        void FootstepsAlign(string atomid, FreeControllerV3 footController, string rb)
-        {
-            Atom RAE = SuperController.singleton.GetAtomByUid(atomid);
-            RAE.ClearParentAtom();
-            RAE.SelectAtomParent(containingAtom);
-
-            FreeControllerV3 raeController = RAE.GetStorableByID("control") as FreeControllerV3;
-
-            // Put the AudioSource exactly on the foot, then switch to ParentLink
-            // so it follows the foot rigidbody from there on.
-            RAE.mainController.currentPositionState = FreeControllerV3.PositionState.On;
-            RAE.mainController.currentRotationState = FreeControllerV3.RotationState.On;
-            raeController.transform.position = footController.transform.position;
-            raeController.transform.rotation = footController.transform.rotation;
-            RAE.mainController.currentPositionState = FreeControllerV3.PositionState.ParentLink;
-            RAE.mainController.currentRotationState = FreeControllerV3.RotationState.ParentLink;
-            raeController.SetLinkToAtom(containingAtom.uid);
-            raeController.SetLinkToRigidbodyObject(rb);
-            raeController.currentPositionState = FreeControllerV3.PositionState.ParentLink;
-        }
-
-        // ----- Sample preload / unload -----
+        // ---------------------------------------------------------------------
+        // Sample preload / unload
+        // ---------------------------------------------------------------------
         // VaM streams audio off disk; pre-queueing every sample for the chosen
-        // surface avoids a stall on the first step. RemoveClips() unloads the
-        // previous surface so we don't keep dozens of clips resident forever.
+        // surface avoids a stall on the first step. UnloadAllSurfaces() drops
+        // the previous surface's clips so we don't keep dozens of clips
+        // resident forever as the user explores surfaces.
 
-        public void RaePreloadSound(string f)
+        void PreloadSound(string f)
         {
             string path = Utils.GetPackagePath(this) + SoundsRoot + f;
             string localPath = SuperController.singleton.NormalizeLoadPath(path);
-            NamedAudioClip nac = URLAudioClipManager.singleton.GetClip(localPath);
-            if (nac == null)
-            {
-                URLAudioClip clip = URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(path));
-                URLAudioClipManager.singleton.GetClip(clip.uid);
-            }
+            if (URLAudioClipManager.singleton.GetClip(localPath) != null) return;
+            URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(path));
         }
 
-        public void RaeRemovedSound(string f)
+        void UnloadSound(string f)
         {
             string path = Utils.GetPackagePath(this) + SoundsRoot + f;
             string localPath = SuperController.singleton.NormalizeLoadPath(path);
-            NamedAudioClip nac = URLAudioClipManager.singleton.GetClip(localPath);
-            if (nac != null)
-                URLAudioClipManager.singleton.RemoveClip(nac);
+            var nac = URLAudioClipManager.singleton.GetClip(localPath);
+            if (nac != null) URLAudioClipManager.singleton.RemoveClip(nac);
         }
 
         // Called whenever the user picks a different surface from the dropdown.
@@ -99,18 +65,25 @@ namespace SPQR
         // new one (unless they picked "None", in which case we just unload).
         protected void DummyChooserCallback(string s)
         {
-            RemoveClips();
+            UnloadAllSurfaces();
             if (s == "None") return;
             int count = sounds[s];
             for (int i = 1; i <= count; i++)
-                RaePreloadSound(SamplePath(s, i));
+                PreloadSound(SamplePath(s, i));
         }
 
-        void RemoveClips()
+        void UnloadAllSurfaces()
         {
             foreach (var item in sounds)
                 for (int i = 1; i <= item.Value; i++)
-                    RaeRemovedSound(SamplePath(item.Key, i));
+                    UnloadSound(SamplePath(item.Key, i));
+        }
+
+        // Layout on disk: <SoundsRoot>/<surface>/<surface> (N).wav
+        // e.g. "Custom/Sounds/FootstepsSFX/boots/boots (3).wav"
+        static string SamplePath(string surface, int index)
+        {
+            return surface + "/" + surface + " (" + index + ").wav";
         }
 
         // Pick a random sample from the currently-selected surface and return
@@ -122,48 +95,39 @@ namespace SPQR
             return SamplePath(soundChooser.val, rand);
         }
 
-        // Layout on disk: <SoundsRoot>/<surface>/<surface> (N).wav
-        // e.g. "Custom/Sounds/FootstepsSFX/boots/boots (3).wav"
-        static string SamplePath(string surface, int index)
+        // ---------------------------------------------------------------------
+        // Playback
+        // ---------------------------------------------------------------------
+        // PlayOneShot allows concurrent left/right steps to overlap instead of
+        // cutting each other off (which would happen with .clip + .Play()).
+        // Volume / pitch / spatial blend are read from JSONStorables on every
+        // step, so slider edits take effect immediately.
+
+        void PlayFootSound(AudioSource source, string surfaceFile)
         {
-            return surface + "/" + surface + " (" + index + ").wav";
-        }
+            if (IsDisabled() || source == null) return;
 
-        // ----- Playback -----
-
-        public AudioSourceControl RaeAudioSource(string id)
-        {
-            Atom raeAudio = SuperController.singleton.GetAtomByUid(id);
-            if (raeAudio == null) return null;
-            return raeAudio.GetStorableByID("AudioSource") as AudioSourceControl;
-        }
-
-        public void RaeSound(string audiosourceId, string f)
-        {
-            if (IsDisabled()) return;
-            if (SuperController.singleton.GetAtomByUid(audiosourceId) == null) return;
-
-            AudioSourceControl raeAudioSource = RaeAudioSource(audiosourceId);
-            if (raeAudioSource == null) return;
-
-            string path = Utils.GetPackagePath(this) + SoundsRoot + f;
+            string path = Utils.GetPackagePath(this) + SoundsRoot + surfaceFile;
             string localPath = SuperController.singleton.NormalizeLoadPath(path);
             NamedAudioClip nac = URLAudioClipManager.singleton.GetClip(localPath);
 
-            // If preload didn't happen (e.g. a step fired before DummyChooserCallback
-            // finished queuing the surface's clips), queue this one on demand.
+            // Lazy-load fallback: a step may fire before DummyChooserCallback
+            // has finished queuing the new surface's samples (queueing is async
+            // off disk).
             if (nac == null)
             {
                 URLAudioClip clip = URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(path));
                 nac = URLAudioClipManager.singleton.GetClip(clip.uid);
             }
+            if (nac == null || nac.sourceClip == null) return;
 
-            if (nac != null)
-            {
-                raeAudioSource.audioSource.Stop();
-                raeAudioSource.audioSource.clip = nac.sourceClip;
-                raeAudioSource.audioSource.Play();
-            }
+            // Per-step pitch jitter — without it, hearing the same sample twice
+            // in a row is an obvious tell. ±5% default is barely audible per
+            // step but huge for variety across many steps.
+            float j = pitchJitter.val;
+            source.pitch = pitch.val * (1f + Random2.Range(-j, j));
+            source.spatialBlend = spatialBlend.val;
+            source.PlayOneShot(nac.sourceClip, volume.val);
         }
     }
 }
