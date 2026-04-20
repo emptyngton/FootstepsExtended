@@ -266,10 +266,12 @@ namespace SPQR
 
         // Conditional log helper. Bypasses IsDisabled() on purpose — debug logs
         // are most useful precisely when the plugin appears to be doing nothing.
+        // Orphan instances (containingAtom destroyed) stay completely silent.
         void Debug(string msg)
         {
             if (debugLog == null || !debugLog.val) return;
-            SuperController.LogMessage("[Footsteps:" + (containingAtom != null ? containingAtom.uid : "?") + "] " + msg);
+            if (containingAtom == null) return;
+            SuperController.LogMessage("[Footsteps:" + containingAtom.uid + "] " + msg);
         }
 
         void Update()
@@ -298,6 +300,12 @@ namespace SPQR
 
         void OnDisable()
         {
+            // Defensive: containingAtom may already be destroyed if the Person
+            // atom is being torn down before the plugin's OnDisable fires. Don't
+            // NPE; just skip the unsubscribe (the rigidbodies are gone too, so
+            // there's nothing to unsubscribe from anyway).
+            if (containingAtom == null) return;
+
             // Detach every TriggerCollide we hooked into; the try/catch covers
             // rigidbodies that never had one attached (e.g. plugin loaded mid-scene).
             containingAtom.GetComponentsInChildren<Rigidbody>().ToList().ForEach(f =>

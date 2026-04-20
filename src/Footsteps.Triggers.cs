@@ -33,6 +33,14 @@ namespace SPQR
         // bail before we do any parent-walking or logging.
         void ObserveTrigger(object sender, TriggerEventArgs e)
         {
+            // Orphan-instance guard. If a previous plugin instance was destroyed
+            // but its delegate is still on a TriggerCollide.OnCollide invocation
+            // list (cleanup-on-destroy didn't run cleanly — typically because
+            // containingAtom was already null at that point), this fires from
+            // beyond the grave. Bail silently so it doesn't pollute the log.
+            // Unity's overloaded == correctly reports true for destroyed objects.
+            if (containingAtom == null) return;
+
             if (myClock > 0f) return;
             if (e.evtType != customevent.EventType.HIT) return;
             if (e.insideTrigger) return;
