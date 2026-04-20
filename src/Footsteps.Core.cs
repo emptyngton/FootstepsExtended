@@ -27,7 +27,7 @@ namespace SPQR
         JSONStorableFloat treshold1;
         JSONStorableFloat treshold2;
         JSONStorableFloat jfloat2;
-        float collisionCooldown = 0.5f;
+        float collisionCooldown = 0.3f;
         float myClock = -1.0f;
 
         // Audio knobs surfaced to the user. Read on every PlayOneShot so
@@ -159,7 +159,7 @@ namespace SPQR
             Utils.SetupSpacer(this, 66, false);
 
             // --- Audio sliders (right column) ---
-            volume = new JSONStorableFloat("Volume", 1f, BlendCallback, 0f, 2f, true);
+            volume = new JSONStorableFloat("Volume", 0.5f, BlendCallback, 0f, 2f, true);
             volume.storeType = JSONStorableParam.StoreType.Full;
             RegisterFloat(volume);
             CreateSlider(volume, true);
@@ -169,7 +169,7 @@ namespace SPQR
             RegisterFloat(pitch);
             CreateSlider(pitch, true);
 
-            pitchJitter = new JSONStorableFloat("Pitch Jitter", 0.05f, BlendCallback, 0f, 0.3f, true);
+            pitchJitter = new JSONStorableFloat("Pitch Jitter", 0.15f, BlendCallback, 0f, 0.3f, true);
             pitchJitter.storeType = JSONStorableParam.StoreType.Full;
             RegisterFloat(pitchJitter);
             CreateSlider(pitchJitter, true);
