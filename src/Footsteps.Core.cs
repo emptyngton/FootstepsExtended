@@ -424,6 +424,11 @@ namespace SPQR
             myEventTriggerLeft.Remove();
             myEventTriggerRight.Remove();
 
+            // Release every cached AudioClip so the plugin leaves no audio
+            // state behind. Deliberately tied to OnDestroy (not OnDisable) so
+            // toggling the plugin off/on doesn't thrash the cache.
+            UnloadAllSurfaces();
+
             // Strip the AudioSource components we added so the foot GameObjects
             // are left exactly as we found them.
             if (leftFootAudio != null)  Destroy(leftFootAudio);

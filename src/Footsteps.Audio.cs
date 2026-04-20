@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Random2 = UnityEngine.Random;
 using MacGruber;
@@ -92,7 +93,12 @@ namespace SPQR
 
             string dir = Utils.GetPackagePath(this) + SoundsRoot + surface;
             string[] files;
-            try { files = FileManagerSecure.GetFiles(dir, "*.wav"); }
+            try
+            {
+                var wavs = FileManagerSecure.GetFiles(dir, "*.wav");
+                var mp3s = FileManagerSecure.GetFiles(dir, "*.mp3");
+                files = wavs.Concat(mp3s).ToArray();
+            }
             catch { files = new string[0]; }
 
             _surfaceClips[surface] = files;
@@ -101,21 +107,49 @@ namespace SPQR
         }
 
         // ---------------------------------------------------------------------
-        // Sample preload / unload (path-based, no naming assumptions)
+        // Sample preload / unload (path-based, plugin-scoped cache)
         // ---------------------------------------------------------------------
+        // Deliberately NOT using URLAudioClipManager: it persists loaded clips
+        // into scene.json, so entries stick around after the plugin is removed
+        // and users end up with ghost audio refs in the Scene Audio Control
+        // list. We read the file bytes directly and keep raw AudioClip objects
+        // on this dictionary — lifetime is tied to the plugin, and OnDestroy
+        // destroys every clip via UnloadAllSurfaces().
+
+        Dictionary<string, AudioClip> _clipCache = new Dictionary<string, AudioClip>();
 
         void PreloadPath(string fullPath)
         {
-            string localPath = SuperController.singleton.NormalizeLoadPath(fullPath);
-            if (URLAudioClipManager.singleton.GetClip(localPath) != null) return;
-            URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(fullPath));
+            if (_clipCache.ContainsKey(fullPath)) return;
+            var clip = LoadClipFromDisk(fullPath);
+            if (clip != null) _clipCache[fullPath] = clip;
         }
 
         void UnloadPath(string fullPath)
         {
-            string localPath = SuperController.singleton.NormalizeLoadPath(fullPath);
-            var nac = URLAudioClipManager.singleton.GetClip(localPath);
-            if (nac != null) URLAudioClipManager.singleton.RemoveClip(nac);
+            AudioClip clip;
+            if (!_clipCache.TryGetValue(fullPath, out clip)) return;
+            _clipCache.Remove(fullPath);
+            if (clip != null) UnityEngine.Object.Destroy(clip);
+        }
+
+        // NAudioPlayer / WAV are VaM built-ins (same helpers CheesyFX and
+        // AcidBubbles Voxta use). .mp3 and .wav only — .ogg has no built-in
+        // decoder and users can trivially convert.
+        AudioClip LoadClipFromDisk(string fullPath)
+        {
+            try
+            {
+                var bytes = FileManagerSecure.ReadAllBytes(fullPath);
+                return fullPath.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase)
+                    ? NAudioPlayer.AudioClipFromMp3Data(bytes)
+                    : NAudioPlayer.AudioClipFromWAV(new WAV(bytes));
+            }
+            catch (Exception e)
+            {
+                SuperController.LogError("Footsteps: failed to load '" + fullPath + "': " + e.Message);
+                return null;
+            }
         }
 
         // Called whenever the user picks a different surface from the dropdown.
@@ -172,18 +206,16 @@ namespace SPQR
             if (source == null) { Debug("PLAY BAILED: AudioSource null (feet not attached yet)"); return; }
             if (string.IsNullOrEmpty(clipPath)) { Debug("PLAY BAILED: no clip path (empty surface?)"); return; }
 
-            string localPath = SuperController.singleton.NormalizeLoadPath(clipPath);
-            NamedAudioClip nac = URLAudioClipManager.singleton.GetClip(localPath);
-
-            // Lazy-load fallback: a step may fire before DummyChooserCallback
-            // has finished queuing the new surface's samples (queueing is async
-            // off disk).
-            if (nac == null)
+            AudioClip audioClip;
+            if (!_clipCache.TryGetValue(clipPath, out audioClip) || audioClip == null)
             {
-                URLAudioClip clip = URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(clipPath));
-                nac = URLAudioClipManager.singleton.GetClip(clip.uid);
+                // Lazy-load fallback: shouldn't normally fire because preload
+                // runs synchronously on surface-change, but covers the case of
+                // a clip file appearing mid-session or a prior load failure.
+                audioClip = LoadClipFromDisk(clipPath);
+                if (audioClip != null) _clipCache[clipPath] = audioClip;
             }
-            if (nac == null || nac.sourceClip == null)
+            if (audioClip == null)
             {
                 Debug(string.Format("PLAY BAILED: clip not loaded for '{0}'", clipPath));
                 return;
@@ -197,7 +229,7 @@ namespace SPQR
             bool wasPlaying = source.isPlaying;
             float cutAt = wasPlaying ? source.time : 0f;
             float prevDur = (wasPlaying && source.clip != null) ? source.clip.length : 0f;
-            float newDur = nac.sourceClip.length;
+            float newDur = audioClip.length;
 
             // Per-step pitch jitter — without it, hearing the same sample twice
             // in a row is an obvious tell.
@@ -206,7 +238,7 @@ namespace SPQR
             source.spatialBlend = spatialBlend.val;
             source.volume = volume.val;
             source.Stop();
-            source.clip = nac.sourceClip;
+            source.clip = audioClip;
             source.Play();
 
             if (isLeft) lastLeftPlayTime = now; else lastRightPlayTime = now;
