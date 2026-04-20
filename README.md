@@ -93,16 +93,6 @@ Project_Footsetps/
 
 The four `Footsteps.*.cs` files declare `partial class Footsteps : MVRScript` — they compile as a single class. The split is purely organizational.
 
-## Build
-
-Requires PowerShell on Windows.
-
-```powershell
-.\build-package.ps1
-```
-
-Auto-scans `AddonPackages/` for the highest existing `Lapiro.FootstepsExtended.<N>.var` and proposes `N+1`. Press Enter to accept, or type a different number.
-
 ## Credits
 
 - **SPQR** — original Footsteps plugin and all bundled audio samples, licensed CC BY 4.0. [Patreon](https://www.patreon.com/SPQR_aeternum)
