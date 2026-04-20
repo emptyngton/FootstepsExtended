@@ -93,9 +93,14 @@ namespace SPQR
         string[] variableColliderIds;
         string[] variableColliderElements;
 
-        // Tiny "Right Foot" / "Left Foot" indicator that flashes green on hit.
-        JSONStorableString collisionsPreview;
-        UIDynamicTextField dtext4;
+        // Two static "Left Foot" / "Right Foot" indicators that flash green
+        // when their respective foot fires a step. Independent so a double-foot
+        // landing visibly flashes both at once.
+        UIDynamicTextField leftFootIndicator;
+        UIDynamicTextField rightFootIndicator;
+
+        static readonly Color IndicatorIdleColor = new Color(1f, 0.33f, 0.33f, 0.7f);
+        static readonly Color IndicatorHitColor  = new Color(0.33f, 1f, 0.33f, 0.7f);
 
         // Toggle that, when on, prints diagnostic messages to VaM's message log
         // for every key event in the pipeline (subscribe count, attach success,
@@ -228,16 +233,26 @@ namespace SPQR
 
             Utils.SetupSpacer(this, 66, true);
 
-            // --- Live "which foot just hit?" indicator ---
-            collisionsPreview = new JSONStorableString("collisionsPreview", "");
-            dtext4 = CreateTextField(collisionsPreview, true);
-            dtext4.UItext.supportRichText = true;
-            dtext4.backgroundColor = new Color(1f, 0.33f, 0.33f, 0.7f);
-            dtext4.textColor = new Color(1f, 1f, 1f, 0.9f);
-            dtext4.height = 100f;
+            // --- Per-foot step indicators (right column) ---
+            // Static labels — the position alone tells you which foot. Background
+            // flashes green on hit via FlashIndicator() in Footsteps.Triggers.cs.
+            leftFootIndicator  = CreateStepIndicator("Left Foot");
+            rightFootIndicator = CreateStepIndicator("Right Foot");
 
             updateVariables();
             SimpleTriggerHandler.LoadAssets();
+        }
+
+        UIDynamicTextField CreateStepIndicator(string label)
+        {
+            var s = new JSONStorableString(label + "Indicator", "<size=20><b>" + label + "</b></size>");
+            var tf = CreateTextField(s, true);
+            tf.UItext.supportRichText = true;
+            tf.UItext.alignment = TextAnchor.MiddleCenter;
+            tf.backgroundColor = IndicatorIdleColor;
+            tf.textColor = new Color(1f, 1f, 1f, 0.9f);
+            tf.height = 80f;
+            return tf;
         }
 
         void Start()

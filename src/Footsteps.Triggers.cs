@@ -124,19 +124,16 @@ namespace SPQR
 
             if (isRight)
             {
-                collisionsPreview.val = "Right Foot";
                 FootstepsRight();
                 rightClock = jfloat2.val;
+                FlashIndicator(rightFootIndicator);
             }
             else
             {
-                collisionsPreview.val = "Left Foot";
                 FootstepsLeft();
                 leftClock = jfloat2.val;
+                FlashIndicator(leftFootIndicator);
             }
-
-            dtext4.backgroundColor = new Color(0.33f, 1f, 0.33f, 0.7f);
-            StartCoroutine(CoroutineFlashTrigger());
         }
 
         void Trigger()      { myEventTrigger.Trigger(); }
@@ -159,12 +156,19 @@ namespace SPQR
             PlayFootSound(rightFootAudio, GetRandomSound());
         }
 
-        // Flash the indicator green for 0.33s, then revert to red.
-        IEnumerator CoroutineFlashTrigger()
+        // Flash one of the per-foot indicators green for 0.33s, then revert.
+        // Each foot has its own coroutine in flight so simultaneous double-foot
+        // hits visibly flash both indicators at once.
+        void FlashIndicator(UIDynamicTextField indicator)
+        {
+            indicator.backgroundColor = IndicatorHitColor;
+            StartCoroutine(CoroutineRevertIndicator(indicator));
+        }
+
+        IEnumerator CoroutineRevertIndicator(UIDynamicTextField indicator)
         {
             yield return new WaitForSeconds(0.33f);
-            collisionsPreview.val = "";
-            dtext4.backgroundColor = new Color(1f, 0.33f, 0.33f, 0.7f);
+            indicator.backgroundColor = IndicatorIdleColor;
         }
     }
 }
