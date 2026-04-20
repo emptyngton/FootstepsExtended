@@ -1,0 +1,6 @@
+src/lib/MacGruber_Utils.cs
+src/Helpers/TriggerCollide.cs
+src/Footsteps.Core.cs
+src/Footsteps.UI.cs
+src/Footsteps.Audio.cs
+src/Footsteps.Triggers.cs

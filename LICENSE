@@ -1,0 +1,57 @@
+FootstepsExtended — license & attribution
+==========================================
+
+This package is a derivative of "Footsteps" by SPQR.
+
+Original work
+-------------
+"Footsteps" plugin and bundled audio assets © SPQR.
+Originally distributed at https://www.patreon.com/SPQR_aeternum.
+Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0).
+SPQR's meta.json declared license: "CC BY".
+
+Modifications by Lapiro
+-----------------------
+Modified by Lapiro, 2026. Changes from the upstream v2 release:
+  - Added four new footstep sound categories to the `sounds` dictionary:
+      * sneak     (20 samples)
+      * Socks     (18 samples)
+      * bootsfly  (24 samples)
+      * barefoot  (11 samples)
+  - Added matching audio sample files for each new category under
+    Custom/Sounds/FootstepsSFX/{sneak,Socks,bootsfly,barefoot}/.
+  - Renamed the audio asset folder from "Aeternum/footsteps/" to
+    "FootstepsSFX/" so this fork's audio doesn't collide with the
+    upstream SPQR.Footsteps .var if both are installed at once.
+  - Repackaged under the namespace Lapiro.FootstepsExtended.
+  - Source code reorganised into partial-class files
+    (Footsteps.Core.cs, .UI.cs, .Audio.cs, .Triggers.cs) — no behaviour change.
+
+Lapiro's modifications are also licensed under CC BY 4.0.
+
+Bundled third-party code
+------------------------
+src/lib/MacGruber_Utils.cs — © MacGruber, used per the original plugin's
+                             credits. License terms as set by MacGruber.
+
+License text
+------------
+The full Creative Commons Attribution 4.0 International license text is
+available at:
+
+    https://creativecommons.org/licenses/by/4.0/legalcode
+
+Human-readable summary:
+
+    https://creativecommons.org/licenses/by/4.0/
+
+You are free to:
+  * Share — copy and redistribute the material in any medium or format
+  * Adapt — remix, transform, and build upon the material for any
+            purpose, even commercially.
+
+Under the following terms:
+  * Attribution — You must give appropriate credit, provide a link to the
+    license, and indicate if changes were made. You may do so in any
+    reasonable manner, but not in any way that suggests the licensor
+    endorses you or your use.

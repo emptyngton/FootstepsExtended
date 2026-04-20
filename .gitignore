@@ -1,0 +1,40 @@
+# JetBrains Rider / IntelliJ
+.idea/
+*.iml
+*.user
+*.userosscache
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.suo
+*.userprefs
+
+# .NET build outputs
+bin/
+obj/
+*.dll
+*.pdb
+*.exe
+
+# Backup and editor temp files
+*.bak
+*.swp
+*.tmp
+*~
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Release output lives at ../FootstepsExtended/ — outside the repo.
+# Local-only build artifacts:
+dist/
+
+# Local dev tooling (not part of the shipped plugin or the CI pipeline's
+# inputs — personal scripts, git hooks, Hub publish templates). Kept on
+# disk but not tracked.
+*.ps1
+hooks/
+package/hub-*.template.bbc
