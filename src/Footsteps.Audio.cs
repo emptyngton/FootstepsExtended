@@ -98,8 +98,18 @@ namespace SPQR
         // ---------------------------------------------------------------------
         // Playback
         // ---------------------------------------------------------------------
-        // PlayOneShot allows concurrent left/right steps to overlap instead of
-        // cutting each other off (which would happen with .clip + .Play()).
+        // Stop() + .clip = x + Play() on the foot's AudioSource — each new step
+        // cleanly interrupts the previous one on the SAME foot. Left and right
+        // feet use separate AudioSources so natural walking (alternating feet)
+        // still lets their sounds overlap.
+        //
+        // This is deliberately NOT PlayOneShot: PlayOneShot layers every call
+        // on top of the previous, so any step that slips through the cooldown
+        // gate (lower cooldown values, or edge-case timing) accumulates
+        // audibly — you quickly end up with a pile-up of concurrent voices
+        // when stomping fast. With Stop/Play the worst case is a clipped tail
+        // on the previous step, which matches the original SPQR behavior.
+        //
         // Volume / pitch / spatial blend are read from JSONStorables on every
         // step, so slider edits take effect immediately.
 
@@ -127,7 +137,10 @@ namespace SPQR
             float j = pitchJitter.val;
             source.pitch = pitch.val * (1f + Random2.Range(-j, j));
             source.spatialBlend = spatialBlend.val;
-            source.PlayOneShot(nac.sourceClip, volume.val);
+            source.volume = volume.val;
+            source.Stop();
+            source.clip = nac.sourceClip;
+            source.Play();
         }
     }
 }
