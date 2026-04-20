@@ -153,7 +153,32 @@ namespace SPQR
             UIDynamicPopup udp = CreateScrollablePopup(soundChooser, false);
             udp.labelWidth = 300f;
 
-            // --- Filter fields (left column) ---
+            // --- Audio sliders (left column, under the surface picker) ---
+            // These belong with "what to play" rather than "when to fire".
+            volume = new JSONStorableFloat("Volume", 0.5f, BlendCallback, 0f, 2f, true);
+            volume.storeType = JSONStorableParam.StoreType.Full;
+            RegisterFloat(volume);
+            CreateSlider(volume, false);
+
+            pitch = new JSONStorableFloat("Pitch", 1f, BlendCallback, 0.5f, 2f, true);
+            pitch.storeType = JSONStorableParam.StoreType.Full;
+            RegisterFloat(pitch);
+            CreateSlider(pitch, false);
+
+            pitchJitter = new JSONStorableFloat("Pitch Jitter", 0.15f, BlendCallback, 0f, 0.3f, true);
+            pitchJitter.storeType = JSONStorableParam.StoreType.Full;
+            RegisterFloat(pitchJitter);
+            CreateSlider(pitchJitter, false);
+
+            spatialBlend = new JSONStorableFloat("Spatial Blend", 1f, BlendCallback, 0f, 1f, true);
+            spatialBlend.storeType = JSONStorableParam.StoreType.Full;
+            RegisterFloat(spatialBlend);
+            CreateSlider(spatialBlend, false);
+
+            // --- Filter fields (registered but not rendered — kept hidden the
+            // same way SPQR's original did. Storables persist in scene JSON so
+            // power users can still edit values via plugin parameter triggers
+            // or by hand-editing the scene file). ---
             variableThisElement = new JSONStorableString("Element:", "rFoot|lFoot", UpdateVarValue);
             variableThisElement.storeType = JSONStorableParam.StoreType.Full;
             RegisterString(variableThisElement);
@@ -177,33 +202,10 @@ namespace SPQR
             variableColliderElement.storeType = JSONStorableParam.StoreType.Full;
             RegisterString(variableColliderElement);
 
-            // Debug toggle (left column, under the filter fields).
+            // Debug toggle (left column, bottom).
             debugLog = new JSONStorableBool("Debug log", false);
             RegisterBool(debugLog);
             CreateToggle(debugLog, false);
-
-            Utils.SetupSpacer(this, 66, false);
-
-            // --- Audio sliders (right column) ---
-            volume = new JSONStorableFloat("Volume", 0.5f, BlendCallback, 0f, 2f, true);
-            volume.storeType = JSONStorableParam.StoreType.Full;
-            RegisterFloat(volume);
-            CreateSlider(volume, true);
-
-            pitch = new JSONStorableFloat("Pitch", 1f, BlendCallback, 0.5f, 2f, true);
-            pitch.storeType = JSONStorableParam.StoreType.Full;
-            RegisterFloat(pitch);
-            CreateSlider(pitch, true);
-
-            pitchJitter = new JSONStorableFloat("Pitch Jitter", 0.15f, BlendCallback, 0f, 0.3f, true);
-            pitchJitter.storeType = JSONStorableParam.StoreType.Full;
-            RegisterFloat(pitchJitter);
-            CreateSlider(pitchJitter, true);
-
-            spatialBlend = new JSONStorableFloat("Spatial Blend", 1f, BlendCallback, 0f, 1f, true);
-            spatialBlend.storeType = JSONStorableParam.StoreType.Full;
-            RegisterFloat(spatialBlend);
-            CreateSlider(spatialBlend, true);
 
             // --- Collision sliders (right column) ---
             treshold1 = new JSONStorableFloat("Impact Min", 0.05f, BlendCallback, 0f, 10f, true);
