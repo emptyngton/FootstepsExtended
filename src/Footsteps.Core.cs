@@ -171,6 +171,18 @@ namespace SPQR
             RegisterFloat(spatialBlend);
             CreateSlider(spatialBlend, false);
 
+            // --- Test Sound buttons (left column, under the audio sliders) ---
+            // Manually fire a step on either foot so users can A/B sound
+            // surfaces without having to walk the character. Goes through the
+            // foot's actual AudioSource so the spatialization sounds the same
+            // as a real step. Bypasses the cooldown gates (you ARE intentionally
+            // testing) but still respects IsDisabled / surface-not-picked.
+            var testLeftBtn = CreateButton("Test Left", false);
+            testLeftBtn.button.onClick.AddListener(() => TestStep(false));
+
+            var testRightBtn = CreateButton("Test Right", false);
+            testRightBtn.button.onClick.AddListener(() => TestStep(true));
+
             // --- Filter fields (registered but not rendered — kept hidden the
             // same way SPQR's original did. Storables persist in scene JSON so
             // power users can still edit values via plugin parameter triggers

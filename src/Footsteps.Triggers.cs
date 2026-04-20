@@ -165,6 +165,22 @@ namespace SPQR
         void TriggerLeft()  { myEventTriggerLeft.Trigger(); }
         void TriggerRight() { myEventTriggerRight.Trigger(); }
 
+        // Wired to the "Test Left" / "Test Right" buttons in the UI. Fires a
+        // random sample on the requested foot's AudioSource so you can A/B
+        // surfaces without walking. Doesn't fire the EventTrigger panels (the
+        // user-visible event hooks) — those are for actual collisions only.
+        void TestStep(bool isRight)
+        {
+            string clipPath = GetRandomClipPath();
+            if (string.IsNullOrEmpty(clipPath))
+            {
+                Debug("TEST BAILED: no surface selected (or surface empty)");
+                return;
+            }
+            PlayFootSound(isRight ? rightFootAudio : leftFootAudio, clipPath);
+            FlashIndicator(isRight ? rightFootIndicator : leftFootIndicator);
+        }
+
         void FootstepsLeft()
         {
             Trigger();
