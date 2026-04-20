@@ -170,7 +170,7 @@ namespace SPQR
             Trigger();
             TriggerLeft();
             if (soundChooser.val == "None") return;
-            PlayFootSound(leftFootAudio, GetRandomSound());
+            PlayFootSound(leftFootAudio, GetRandomClipPath());
         }
 
         void FootstepsRight()
@@ -178,7 +178,7 @@ namespace SPQR
             Trigger();
             TriggerRight();
             if (soundChooser.val == "None") return;
-            PlayFootSound(rightFootAudio, GetRandomSound());
+            PlayFootSound(rightFootAudio, GetRandomClipPath());
         }
 
         // Flash one of the per-foot indicators green for 0.33s, then revert.

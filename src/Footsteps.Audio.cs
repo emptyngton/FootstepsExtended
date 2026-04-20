@@ -1,6 +1,9 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using Random2 = UnityEngine.Random;
 using MacGruber;
+using MVR.FileManagementSecure;
 
 namespace SPQR
 {
@@ -47,62 +50,105 @@ namespace SPQR
         }
 
         // ---------------------------------------------------------------------
-        // Sample preload / unload
+        // Surface + clip discovery
         // ---------------------------------------------------------------------
-        // VaM streams audio off disk; pre-queueing every sample for the chosen
-        // surface avoids a stall on the first step. UnloadAllSurfaces() drops
-        // the previous surface's clips so we don't keep dozens of clips
-        // resident forever as the user explores surfaces.
+        // No naming convention: each surface is just a folder under SoundsRoot,
+        // each .wav file in it is a sample. Drop in / remove / rename files
+        // freely; the plugin enumerates them at load time.
+        //
+        // _surfaceClips caches per-surface file lists so we don't hit the VFS
+        // on every PlayFootSound. Cleared and refilled when the user picks a
+        // surface from the dropdown, so re-picking the same surface picks up
+        // any files added since plugin load.
 
-        void PreloadSound(string f)
+        Dictionary<string, string[]> _surfaceClips = new Dictionary<string, string[]>();
+
+        // Enumerate folder names under SoundsRoot — each becomes a dropdown
+        // entry. Sorted alphabetically for stable UI ordering.
+        List<string> DiscoverSurfaces()
         {
-            string path = Utils.GetPackagePath(this) + SoundsRoot + f;
-            string localPath = SuperController.singleton.NormalizeLoadPath(path);
-            if (URLAudioClipManager.singleton.GetClip(localPath) != null) return;
-            URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(path));
+            var result = new List<string>();
+            string root = Utils.GetPackagePath(this) + SoundsRoot;
+            string[] dirs;
+            try { dirs = FileManagerSecure.GetDirectories(root); }
+            catch { dirs = new string[0]; }
+
+            foreach (var d in dirs)
+            {
+                string trimmed = d.TrimEnd('/', '\\');
+                int slash = Math.Max(trimmed.LastIndexOf('/'), trimmed.LastIndexOf('\\'));
+                string name = slash >= 0 ? trimmed.Substring(slash + 1) : trimmed;
+                if (!string.IsNullOrEmpty(name)) result.Add(name);
+            }
+            result.Sort(StringComparer.OrdinalIgnoreCase);
+            return result;
         }
 
-        void UnloadSound(string f)
+        // Get (and cache) the list of full clip paths for one surface.
+        string[] GetSurfaceClips(string surface)
         {
-            string path = Utils.GetPackagePath(this) + SoundsRoot + f;
-            string localPath = SuperController.singleton.NormalizeLoadPath(path);
+            string[] cached;
+            if (_surfaceClips.TryGetValue(surface, out cached)) return cached;
+
+            string dir = Utils.GetPackagePath(this) + SoundsRoot + surface;
+            string[] files;
+            try { files = FileManagerSecure.GetFiles(dir, "*.wav"); }
+            catch { files = new string[0]; }
+
+            _surfaceClips[surface] = files;
+            Debug(string.Format("Surface '{0}': discovered {1} clip(s)", surface, files.Length));
+            return files;
+        }
+
+        // ---------------------------------------------------------------------
+        // Sample preload / unload (path-based, no naming assumptions)
+        // ---------------------------------------------------------------------
+
+        void PreloadPath(string fullPath)
+        {
+            string localPath = SuperController.singleton.NormalizeLoadPath(fullPath);
+            if (URLAudioClipManager.singleton.GetClip(localPath) != null) return;
+            URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(fullPath));
+        }
+
+        void UnloadPath(string fullPath)
+        {
+            string localPath = SuperController.singleton.NormalizeLoadPath(fullPath);
             var nac = URLAudioClipManager.singleton.GetClip(localPath);
             if (nac != null) URLAudioClipManager.singleton.RemoveClip(nac);
         }
 
         // Called whenever the user picks a different surface from the dropdown.
-        // Always unloads the previous surface's clips first, then preloads the
-        // new one (unless they picked "None", in which case we just unload).
+        // Always unloads previously-cached clips first, then re-enumerates the
+        // newly-picked surface (so files added since last selection get picked
+        // up) and preloads them all.
         protected void DummyChooserCallback(string s)
         {
             UnloadAllSurfaces();
             if (s == "None") return;
-            int count = sounds[s];
-            for (int i = 1; i <= count; i++)
-                PreloadSound(SamplePath(s, i));
+
+            // Force re-enumeration of the picked surface — picks up any files
+            // added/removed since the last cache. Other surfaces' caches stay.
+            _surfaceClips.Remove(s);
+            foreach (var path in GetSurfaceClips(s))
+                PreloadPath(path);
         }
 
         void UnloadAllSurfaces()
         {
-            foreach (var item in sounds)
-                for (int i = 1; i <= item.Value; i++)
-                    UnloadSound(SamplePath(item.Key, i));
+            foreach (var kv in _surfaceClips)
+                foreach (var path in kv.Value)
+                    UnloadPath(path);
         }
 
-        // Layout on disk: <SoundsRoot>/<surface>/<surface> (N).wav
-        // e.g. "Custom/Sounds/FootstepsSFX/boots/boots (3).wav"
-        static string SamplePath(string surface, int index)
+        // Pick a random clip path from the currently-selected surface. Returns
+        // null on empty / missing surface, in which case PlayFootSound bails.
+        string GetRandomClipPath()
         {
-            return surface + "/" + surface + " (" + index + ").wav";
-        }
-
-        // Pick a random sample from the currently-selected surface and return
-        // its package-relative path (relative to SoundsRoot).
-        string GetRandomSound()
-        {
-            int count = sounds[soundChooser.val];
-            int rand = Random2.Range(1, count + 1);
-            return SamplePath(soundChooser.val, rand);
+            if (string.IsNullOrEmpty(soundChooser.val) || soundChooser.val == "None") return null;
+            var clips = GetSurfaceClips(soundChooser.val);
+            if (clips == null || clips.Length == 0) return null;
+            return clips[Random2.Range(0, clips.Length)];
         }
 
         // ---------------------------------------------------------------------
@@ -115,21 +161,18 @@ namespace SPQR
         //
         // This is deliberately NOT PlayOneShot: PlayOneShot layers every call
         // on top of the previous, so any step that slips through the cooldown
-        // gate (lower cooldown values, or edge-case timing) accumulates
-        // audibly — you quickly end up with a pile-up of concurrent voices
-        // when stomping fast. With Stop/Play the worst case is a clipped tail
-        // on the previous step, which matches the original SPQR behavior.
+        // gate accumulates audibly.
         //
         // Volume / pitch / spatial blend are read from JSONStorables on every
         // step, so slider edits take effect immediately.
 
-        void PlayFootSound(AudioSource source, string surfaceFile)
+        void PlayFootSound(AudioSource source, string clipPath)
         {
             if (IsDisabled()) { Debug("PLAY BAILED: plugin disabled"); return; }
             if (source == null) { Debug("PLAY BAILED: AudioSource null (feet not attached yet)"); return; }
+            if (string.IsNullOrEmpty(clipPath)) { Debug("PLAY BAILED: no clip path (empty surface?)"); return; }
 
-            string path = Utils.GetPackagePath(this) + SoundsRoot + surfaceFile;
-            string localPath = SuperController.singleton.NormalizeLoadPath(path);
+            string localPath = SuperController.singleton.NormalizeLoadPath(clipPath);
             NamedAudioClip nac = URLAudioClipManager.singleton.GetClip(localPath);
 
             // Lazy-load fallback: a step may fire before DummyChooserCallback
@@ -137,21 +180,16 @@ namespace SPQR
             // off disk).
             if (nac == null)
             {
-                URLAudioClip clip = URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(path));
+                URLAudioClip clip = URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(clipPath));
                 nac = URLAudioClipManager.singleton.GetClip(clip.uid);
             }
             if (nac == null || nac.sourceClip == null)
             {
-                Debug("PLAY BAILED: clip not loaded for path '" + path + "'");
+                Debug(string.Format("PLAY BAILED: clip not loaded for '{0}'", clipPath));
                 return;
             }
 
             // ---- Capture pre-play state for diagnostics ----
-            // wasPlaying tells us if Stop+Play is interrupting an in-flight
-            // clip. cutAt + prevDur show where in the previous clip we cut
-            // (e.g. "0.41/0.88s" = we cut ~halfway through the previous step's
-            // sound, which often sounds choppy). sinceLastPlay shows the
-            // wall-clock gap since this same foot last played.
             bool isLeft = source == leftFootAudio;
             float now = Time.time;
             float lastPlayed = isLeft ? lastLeftPlayTime : lastRightPlayTime;
@@ -162,8 +200,7 @@ namespace SPQR
             float newDur = nac.sourceClip.length;
 
             // Per-step pitch jitter — without it, hearing the same sample twice
-            // in a row is an obvious tell. ±5% default is barely audible per
-            // step but huge for variety across many steps.
+            // in a row is an obvious tell.
             float j = pitchJitter.val;
             source.pitch = pitch.val * (1f + Random2.Range(-j, j));
             source.spatialBlend = spatialBlend.val;
@@ -178,8 +215,15 @@ namespace SPQR
             string interruptStr = wasPlaying
                 ? string.Format("INTERRUPTED@{0:F2}/{1:F2}s ({2:P0} into prev clip)", cutAt, prevDur, prevDur > 0f ? cutAt / prevDur : 0f)
                 : "(prev finished)";
+
+            // Show just the file name in the log (the full VFS path is noisy
+            // and not useful for diagnosis).
+            string clipName = clipPath;
+            int lastSlash = Math.Max(clipName.LastIndexOf('/'), clipName.LastIndexOf('\\'));
+            if (lastSlash >= 0) clipName = clipName.Substring(lastSlash + 1);
+
             Debug(string.Format("PLAY {0} ← '{1}' dur={2:F2}s sinceLast={3} {4}",
-                isLeft ? "lFoot" : "rFoot", surfaceFile, newDur, sinceStr, interruptStr));
+                isLeft ? "lFoot" : "rFoot", clipName, newDur, sinceStr, interruptStr));
         }
     }
 }

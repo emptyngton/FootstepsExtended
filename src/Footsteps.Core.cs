@@ -56,38 +56,11 @@ namespace SPQR
         AudioSource rightFootAudio;
 
         // Currently selected sound surface ("None" / "boots" / "carpet" / ...).
+        // The list of available surfaces is auto-discovered at Init time by
+        // DiscoverSurfaces() — each subfolder under SoundsRoot becomes a
+        // choice. No hardcoded list to maintain; drop in or remove folders
+        // freely between plugin reloads.
         JSONStorableStringChooser soundChooser;
-
-        // Map of surface name -> number of audio samples shipped for that
-        // surface. Used both to populate the dropdown in Init and to randomise
-        // sample selection at play time. Numbers must match what's actually
-        // under Custom/Sounds/FootstepsSFX/<key>/<key> (N).wav.
-        Dictionary<string, int> sounds = new Dictionary<string, int>(){
-            {"sneak", 20},
-            {"Socks", 18},
-            {"bootsfly", 24},
-            {"boots", 9},
-            {"carpet", 6},
-            {"concrete", 11},
-            {"dirt", 5},
-            {"grass", 1},
-            {"grass2", 6},
-            {"gravel", 1},
-            {"gritty", 10},
-            {"hard", 11},
-            {"heels1", 13},
-            {"heels2", 3},
-            {"heels3", 1},
-            {"heels4", 10},
-            {"ice", 2},
-            {"squeaky", 30},
-            {"step", 2},
-            {"step2", 4},
-            {"wood1", 17},
-            {"wood2", 4},
-            {"wood3", 20},
-            {"barefoot", 11}
-        };
 
         // Pipe-separated filter inputs (as text). Edited via the UI fields.
         // updateVariables() splits each into its `*Elements` companion array
@@ -161,10 +134,15 @@ namespace SPQR
             Utils.SetupSpacer(this, 10, true);
 
             // --- Sound surface picker (left column) ---
+            // Auto-discover surfaces by listing subfolders under SoundsRoot.
+            // Folders that didn't exist when the plugin was last loaded won't
+            // appear — reload the plugin (Plugins tab → Rescan) to pick up new
+            // surfaces. Files within a selected surface ARE re-enumerated on
+            // each dropdown selection, though, so adding samples to an existing
+            // surface just requires re-picking it from the menu.
             List<string> choices = new List<string>();
             choices.Add("None");
-            foreach (var item in sounds)
-                choices.Add(item.Key);
+            choices.AddRange(DiscoverSurfaces());
 
             soundChooser = new JSONStorableStringChooser("Sounds", choices, "None", "Sounds", DummyChooserCallback);
             RegisterStringChooser(soundChooser);
