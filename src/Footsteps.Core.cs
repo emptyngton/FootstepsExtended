@@ -94,6 +94,12 @@ namespace SPQR
         JSONStorableString collisionsPreview;
         UIDynamicTextField dtext4;
 
+        // Toggle that, when on, prints diagnostic messages to VaM's message log
+        // for every key event in the pipeline (subscribe count, attach success,
+        // collision filter pass/fail, sound playback). Off by default — only
+        // useful when something stops working.
+        JSONStorableBool debugLog;
+
         public override void Init()
         {
             if (containingAtom == null || containingAtom.type != "Person")
@@ -155,6 +161,11 @@ namespace SPQR
             variableColliderElement = new JSONStorableString("Collider Element", "", UpdateVarValue);
             variableColliderElement.storeType = JSONStorableParam.StoreType.Full;
             RegisterString(variableColliderElement);
+
+            // Debug toggle (left column, under the filter fields).
+            debugLog = new JSONStorableBool("Debug log", false);
+            RegisterBool(debugLog);
+            CreateToggle(debugLog, false);
 
             Utils.SetupSpacer(this, 66, false);
 
@@ -221,8 +232,37 @@ namespace SPQR
 
         void Start()
         {
+            // Try once immediately — usually succeeds on a freshly-built scene
+            // where the Person's body parts are already loaded by Start time.
             RefreshColliders();
             AttachFootAudioSources();
+
+            // ...but on scene LOAD (vs build-from-scratch), the Person atom can
+            // still be assembling its rigidbodies when Start fires, so the first
+            // pass may have found nothing to subscribe to. Retry every second
+            // until both feet have AudioSources, then stop polling.
+            InvokeRepeating(nameof(EnsureSetupReady), 1f, 1f);
+        }
+
+        void EnsureSetupReady()
+        {
+            if (FeetReady)
+            {
+                Debug("EnsureSetupReady: feet ready, stopping retry loop");
+                CancelInvoke(nameof(EnsureSetupReady));
+                return;
+            }
+            Debug("EnsureSetupReady: feet not ready, retrying...");
+            RefreshColliders();
+            AttachFootAudioSources();
+        }
+
+        // Conditional log helper. Bypasses IsDisabled() on purpose — debug logs
+        // are most useful precisely when the plugin appears to be doing nothing.
+        void Debug(string msg)
+        {
+            if (debugLog == null || !debugLog.val) return;
+            SuperController.LogMessage("[Footsteps:" + (containingAtom != null ? containingAtom.uid : "?") + "] " + msg);
         }
 
         void Update()
@@ -311,6 +351,7 @@ namespace SPQR
 
         void OnDestroy()
         {
+            CancelInvoke();
             SuperController.singleton.onAtomUIDRenameHandlers -= OnAtomRename;
             Utils.OnDestroyUI();
             OnDisable();

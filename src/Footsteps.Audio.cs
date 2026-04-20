@@ -16,14 +16,24 @@ namespace SPQR
         // atoms. Cleaner: no scene clutter, no atom-UID rename juggling, and
         // OnDestroy just calls Destroy() on the components.
 
+        // Idempotent: skips feet that already have an AudioSource attached, so
+        // the EnsureSetupReady retry loop can call this every second until the
+        // Person body parts finish loading without ever double-attaching.
         void AttachFootAudioSources()
         {
             foreach (var rb in containingAtom.GetComponentsInChildren<Rigidbody>())
             {
-                if (rb.name == "lFoot") leftFootAudio  = ConfigureFootAudio(rb.gameObject);
-                else if (rb.name == "rFoot") rightFootAudio = ConfigureFootAudio(rb.gameObject);
+                if (rb.name == "lFoot" && leftFootAudio == null)
+                    leftFootAudio = ConfigureFootAudio(rb.gameObject);
+                else if (rb.name == "rFoot" && rightFootAudio == null)
+                    rightFootAudio = ConfigureFootAudio(rb.gameObject);
             }
+            Debug("AttachFootAudioSources: lFoot=" + (leftFootAudio != null) + " rFoot=" + (rightFootAudio != null));
         }
+
+        // True only when both feet have an AudioSource attached. Used by the
+        // setup-ready retry loop to know when to stop polling.
+        bool FeetReady { get { return leftFootAudio != null && rightFootAudio != null; } }
 
         AudioSource ConfigureFootAudio(GameObject host)
         {
@@ -115,7 +125,8 @@ namespace SPQR
 
         void PlayFootSound(AudioSource source, string surfaceFile)
         {
-            if (IsDisabled() || source == null) return;
+            if (IsDisabled()) { Debug("PlayFootSound: bailed (plugin disabled)"); return; }
+            if (source == null) { Debug("PlayFootSound: bailed (AudioSource is null — feet not attached yet)"); return; }
 
             string path = Utils.GetPackagePath(this) + SoundsRoot + surfaceFile;
             string localPath = SuperController.singleton.NormalizeLoadPath(path);
@@ -129,7 +140,11 @@ namespace SPQR
                 URLAudioClip clip = URLAudioClipManager.singleton.QueueClip(SuperController.singleton.NormalizeMediaPath(path));
                 nac = URLAudioClipManager.singleton.GetClip(clip.uid);
             }
-            if (nac == null || nac.sourceClip == null) return;
+            if (nac == null || nac.sourceClip == null)
+            {
+                Debug("PlayFootSound: bailed (clip not loaded for path '" + path + "')");
+                return;
+            }
 
             // Per-step pitch jitter — without it, hearing the same sample twice
             // in a row is an obvious tell. ±5% default is barely audible per
@@ -141,6 +156,7 @@ namespace SPQR
             source.Stop();
             source.clip = nac.sourceClip;
             source.Play();
+            Debug("PlayFootSound: playing '" + surfaceFile + "' on " + (source == leftFootAudio ? "lFoot" : "rFoot"));
         }
     }
 }

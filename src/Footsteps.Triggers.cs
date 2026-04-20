@@ -9,22 +9,22 @@ namespace SPQR
     public partial class Footsteps : MVRScript
     {
         // Attach a TriggerCollide MonoBehaviour to every rigidbody in the Person
-        // atom (one-shot AddComponent if missing) and subscribe to its OnCollide
-        // event. The try/catch is the cheap way to do GetOrAdd — GetComponent
-        // returns null on absence, and calling .OnCollide on null throws.
+        // atom (idempotent: GetOrAddComponent), then re-subscribe ObserveTrigger
+        // to its OnCollide event. The unsubscribe-then-subscribe pair keeps this
+        // safe to call multiple times — the EnsureSetupReady retry loop relies
+        // on that, as does OnEnable.
         public void RefreshColliders()
         {
-            containingAtom.GetComponentsInChildren<Rigidbody>().ToList().ForEach(f =>
+            int subscribed = 0;
+            foreach (var f in containingAtom.GetComponentsInChildren<Rigidbody>())
             {
-                try
-                {
-                    f.gameObject.GetComponent<TriggerCollide>().OnCollide += ObserveTrigger;
-                }
-                catch
-                {
-                    f.gameObject.AddComponent<TriggerCollide>().OnCollide += ObserveTrigger;
-                }
-            });
+                var tc = f.gameObject.GetComponent<TriggerCollide>();
+                if (tc == null) tc = f.gameObject.AddComponent<TriggerCollide>();
+                tc.OnCollide -= ObserveTrigger;
+                tc.OnCollide += ObserveTrigger;
+                subscribed++;
+            }
+            Debug("RefreshColliders: subscribed to " + subscribed + " rigidbodies");
         }
 
         // Per-collision handler. Walks the colliding hierarchy to find the owning
@@ -33,12 +33,16 @@ namespace SPQR
         // [Impact Min, Impact Max] window. `myClock` is the post-step cooldown gate.
         void ObserveTrigger(object sender, TriggerEventArgs e)
         {
-            if (myClock > 0f) return;
+            if (myClock > 0f) { Debug("ObserveTrigger: bailed (cooldown active, " + myClock.ToString("F2") + "s left)"); return; }
             if (e.evtType != customevent.EventType.HIT) return;
             if (e.insideTrigger) return;
 
             float level = e.collision.relativeVelocity.magnitude / 3.0f;
-            if (level <= treshold1.val || level >= treshold2.val) return;
+            if (level <= treshold1.val || level >= treshold2.val)
+            {
+                Debug("ObserveTrigger: bailed (level " + level.ToString("F2") + " outside [" + treshold1.val.ToString("F2") + ".." + treshold2.val.ToString("F2") + "])");
+                return;
+            }
 
             // Find the owning Atom by walking parents from the colliding GameObject.
             Atom parent = null;
@@ -62,12 +66,14 @@ namespace SPQR
                 }
             }
 
-            string xname = found.Length > 0 ? found : parent.name;
+            string xname = found.Length > 0 ? found : (parent != null ? parent.name : "?");
+            string xtype = parent != null ? parent.type : "?";
             string xcollider = e.collider.name;
             if (e.collision.contacts.Count() > 0)
                 xcollider = e.collision.contacts[0].otherCollider.attachedRigidbody.name;
 
-            RaeClickTouch(sender.ToString(), xname, parent.type, xcollider);
+            Debug("ObserveTrigger: hit sender='" + sender + "' other='" + xname + "' type='" + xtype + "' collider='" + xcollider + "' level=" + level.ToString("F2"));
+            RaeClickTouch(sender.ToString(), xname, xtype, xcollider);
         }
 
         // Apply user-configured filters, then fire the appropriate side trigger
@@ -75,16 +81,20 @@ namespace SPQR
         // signature suffix; strip it so the rigidbody name compares cleanly.
         void RaeClickTouch(string sender, string name, string type, string collider)
         {
-            if (IsDisabled()) return;
+            if (IsDisabled()) { Debug("RaeClickTouch: bailed (plugin disabled)"); return; }
             sender = sender.Replace(" (customevent.TriggerCollide)", "");
 
             // Don't trigger on self-collisions (e.g. foot-to-leg).
-            if (name == containingAtom.name) return;
+            if (name == containingAtom.name) { Debug("RaeClickTouch: bailed (self-collision)"); return; }
 
-            if (variableThisElements.Length      > 0 && Array.IndexOf(variableThisElements, sender)        == -1) return;
-            if (variableColliderGroups.Length    > 0 && Array.IndexOf(variableColliderGroups, type)        == -1) return;
-            if (variableColliderIds.Length       > 0 && Array.IndexOf(variableColliderIds, name)           == -1) return;
-            if (variableColliderElements.Length  > 0 && Array.IndexOf(variableColliderElements, collider)  == -1) return;
+            if (variableThisElements.Length > 0 && Array.IndexOf(variableThisElements, sender) == -1)
+            { Debug("RaeClickTouch: bailed (sender '" + sender + "' not in Element filter)"); return; }
+            if (variableColliderGroups.Length > 0 && Array.IndexOf(variableColliderGroups, type) == -1)
+            { Debug("RaeClickTouch: bailed (other-type '" + type + "' not in Collider Group filter)"); return; }
+            if (variableColliderIds.Length > 0 && Array.IndexOf(variableColliderIds, name) == -1)
+            { Debug("RaeClickTouch: bailed (other-name '" + name + "' not in Collider Atom filter)"); return; }
+            if (variableColliderElements.Length > 0 && Array.IndexOf(variableColliderElements, collider) == -1)
+            { Debug("RaeClickTouch: bailed (other-collider '" + collider + "' not in Collider Element filter)"); return; }
 
             if (sender == "rToe" || sender == "rBigToe" || sender == "rFoot")
             {
