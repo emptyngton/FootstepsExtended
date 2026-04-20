@@ -76,7 +76,7 @@ jobs:
             - Per-foot Unity AudioSources with proper 3D spatial positioning
             - Pitch jitter for sample variety; volume / pitch / spatial-blend sliders
             - Independent per-foot cooldowns + a global anti-double-fire guard
-            - Auto-discovery — drop your own `.wav` files into any surface folder, or create new surface folders, no code changes needed
+            - Auto-discovery — drop your own `.wav` or `.mp3` files into any surface folder, or create new surface folders, no code changes needed
             - Live per-foot step indicators + Test Left / Test Right buttons
             - EventTrigger panels for wiring custom VaM actions to step events
             - Verbose timestamped debug log (toggleable) for troubleshooting

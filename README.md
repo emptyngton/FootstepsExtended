@@ -15,7 +15,7 @@ A footstep audio plugin for [Virt-a-Mate](https://virtamate.com/). Detects when 
 - **Live step indicators** — separate Left Foot / Right Foot status boxes flash green on each step
 - **Test buttons** — fire either foot manually so you can A/B sound surfaces without walking the character
 - **EventTriggers** — wire arbitrary VaM actions to fire on Any Step / Left Step / Right Step (e.g. spawn a particle, run a Timeline trigger)
-- **Custom samples** — drop your own `.wav` files into any surface folder, or create new surface folders, no code changes required (see *Adding your own sounds* below)
+- **Custom samples** — drop your own `.wav` or `.mp3` files into any surface folder, or create new surface folders, no code changes required (see *Adding your own sounds* below)
 - **Debug log toggle** — verbose timestamped diagnostics for troubleshooting collision detection or audio playback
 
 ## Install
@@ -59,9 +59,9 @@ Spatial Blend   1.00           Trigger On Step
 
 ## Adding your own sounds
 
-Audio lives at `Custom/Sounds/FootstepsSFX/<surface>/*.wav` inside the package. The plugin auto-discovers everything at load time:
+Audio lives at `Custom/Sounds/FootstepsSFX/<surface>/*.wav` (or `*.mp3`) inside the package. The plugin auto-discovers everything at load time:
 
-- **Add samples to an existing surface** — drop new `.wav` files into the surface's folder, then re-pick that surface from the dropdown. Naming doesn't matter; any `.wav` file is picked up
+- **Add samples to an existing surface** — drop new `.wav` or `.mp3` files into the surface's folder, then re-pick that surface from the dropdown. Naming doesn't matter; any `.wav` or `.mp3` file is picked up
 - **Add a new surface** — create a new folder under `FootstepsSFX/`, drop in your samples, reload the plugin. The new surface appears in the dropdown
 - **Replace samples** — just overwrite the files. Re-pick the surface to flush the cache
 
