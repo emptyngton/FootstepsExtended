@@ -125,8 +125,8 @@ namespace SPQR
 
         void PlayFootSound(AudioSource source, string surfaceFile)
         {
-            if (IsDisabled()) { Debug("PlayFootSound: bailed (plugin disabled)"); return; }
-            if (source == null) { Debug("PlayFootSound: bailed (AudioSource is null — feet not attached yet)"); return; }
+            if (IsDisabled()) { Debug("PLAY BAILED: plugin disabled"); return; }
+            if (source == null) { Debug("PLAY BAILED: AudioSource null (feet not attached yet)"); return; }
 
             string path = Utils.GetPackagePath(this) + SoundsRoot + surfaceFile;
             string localPath = SuperController.singleton.NormalizeLoadPath(path);
@@ -142,9 +142,24 @@ namespace SPQR
             }
             if (nac == null || nac.sourceClip == null)
             {
-                Debug("PlayFootSound: bailed (clip not loaded for path '" + path + "')");
+                Debug("PLAY BAILED: clip not loaded for path '" + path + "'");
                 return;
             }
+
+            // ---- Capture pre-play state for diagnostics ----
+            // wasPlaying tells us if Stop+Play is interrupting an in-flight
+            // clip. cutAt + prevDur show where in the previous clip we cut
+            // (e.g. "0.41/0.88s" = we cut ~halfway through the previous step's
+            // sound, which often sounds choppy). sinceLastPlay shows the
+            // wall-clock gap since this same foot last played.
+            bool isLeft = source == leftFootAudio;
+            float now = Time.time;
+            float lastPlayed = isLeft ? lastLeftPlayTime : lastRightPlayTime;
+            float sinceLastPlay = lastPlayed < 0f ? -1f : now - lastPlayed;
+            bool wasPlaying = source.isPlaying;
+            float cutAt = wasPlaying ? source.time : 0f;
+            float prevDur = (wasPlaying && source.clip != null) ? source.clip.length : 0f;
+            float newDur = nac.sourceClip.length;
 
             // Per-step pitch jitter — without it, hearing the same sample twice
             // in a row is an obvious tell. ±5% default is barely audible per
@@ -156,7 +171,15 @@ namespace SPQR
             source.Stop();
             source.clip = nac.sourceClip;
             source.Play();
-            Debug("PlayFootSound: playing '" + surfaceFile + "' on " + (source == leftFootAudio ? "lFoot" : "rFoot"));
+
+            if (isLeft) lastLeftPlayTime = now; else lastRightPlayTime = now;
+
+            string sinceStr = sinceLastPlay < 0f ? "first" : string.Format("+{0:F2}s", sinceLastPlay);
+            string interruptStr = wasPlaying
+                ? string.Format("INTERRUPTED@{0:F2}/{1:F2}s ({2:P0} into prev clip)", cutAt, prevDur, prevDur > 0f ? cutAt / prevDur : 0f)
+                : "(prev finished)";
+            Debug(string.Format("PLAY {0} ← '{1}' dur={2:F2}s sinceLast={3} {4}",
+                isLeft ? "lFoot" : "rFoot", surfaceFile, newDur, sinceStr, interruptStr));
         }
     }
 }

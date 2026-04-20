@@ -114,8 +114,17 @@ namespace SPQR
         // Toggle that, when on, prints diagnostic messages to VaM's message log
         // for every key event in the pipeline (subscribe count, attach success,
         // collision filter pass/fail, sound playback). Off by default — only
-        // useful when something stops working.
+        // useful when something stops working or sounds wrong.
         JSONStorableBool debugLog;
+
+        // Diagnostic timing state. lastDebugTime gives us a "+dt" delta on
+        // every log line (vital for telling 0.5s-apart-walking from 0.05s-apart-
+        // engine-flood). lastLeft/RightPlayTime give us "time since last play"
+        // for each foot's AudioSource so we can see if Stop+Play is constantly
+        // interrupting clips that haven't finished.
+        float lastDebugTime    = -1f;
+        float lastLeftPlayTime  = -1f;
+        float lastRightPlayTime = -1f;
 
         public override void Init()
         {
@@ -305,11 +314,21 @@ namespace SPQR
         // Conditional log helper. Bypasses IsDisabled() on purpose — debug logs
         // are most useful precisely when the plugin appears to be doing nothing.
         // Orphan instances (containingAtom destroyed) stay completely silent.
+        //
+        // Prepends an absolute timestamp and a delta-from-previous-log so the
+        // user can read event spacing at a glance:
+        //   [t=15.342 +0.12] HIT lFoot ...
+        //   [t=15.343 +0.00] PLAY lFoot ...   <- 1ms later, same frame
+        //   [t=15.788 +0.45] HIT rFoot ...    <- 445ms later, normal walk pace
         void Debug(string msg)
         {
             if (debugLog == null || !debugLog.val) return;
             if (containingAtom == null) return;
-            SuperController.LogMessage("[Footsteps:" + containingAtom.uid + "] " + msg);
+            float now = Time.time;
+            float dt = lastDebugTime < 0f ? 0f : now - lastDebugTime;
+            lastDebugTime = now;
+            SuperController.LogMessage(string.Format("[Footsteps:{0}] [t={1:F3} +{2:F3}] {3}",
+                containingAtom.uid, now, dt, msg));
         }
 
         void Update()

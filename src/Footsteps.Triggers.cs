@@ -58,7 +58,12 @@ namespace SPQR
             // a simultaneous double-foot landing (jump, two-footed stomp) fires
             // both sounds instead of just whichever one Unity dispatched first.
             bool isRight = senderName == "rFoot" || senderName == "rToe" || senderName == "rBigToe";
-            if (isRight ? rightClock > 0f : leftClock > 0f) return;
+            float thisFootClock = isRight ? rightClock : leftClock;
+            if (thisFootClock > 0f)
+            {
+                Debug(string.Format("HIT {0} BAILED: per-foot cooldown {1:F2}s left", senderName, thisFootClock));
+                return;
+            }
 
             // Global anti-double-fire gap. Tiny gate (~0.1s default) that
             // absorbs Unity's same-frame ripple collisions without affecting
@@ -66,7 +71,7 @@ namespace SPQR
             // foot's identical-frame echo collision bails here.
             if (globalClock > 0f)
             {
-                Debug("ObserveTrigger: bailed (global step gap " + globalClock.ToString("F2") + "s left)");
+                Debug(string.Format("HIT {0} BAILED: global gap {1:F2}s left", senderName, globalClock));
                 return;
             }
 
@@ -77,7 +82,8 @@ namespace SPQR
             if (level <= treshold1.val || level >= treshold2.val)
             {
                 if (level > 0.01f)
-                    Debug("ObserveTrigger: bailed (level " + level.ToString("F2") + " outside [" + treshold1.val.ToString("F2") + ".." + treshold2.val.ToString("F2") + "])");
+                    Debug(string.Format("HIT {0} BAILED: level {1:F2} outside [{2:F2}..{3:F2}]",
+                        senderName, level, treshold1.val, treshold2.val));
                 return;
             }
 
@@ -112,7 +118,12 @@ namespace SPQR
             // Drop self-collisions (foot brushed our own knee/thigh) silently.
             if (xname == containingAtom.name) return;
 
-            Debug("ObserveTrigger: hit sender='" + senderName + "' other='" + xname + "' type='" + xtype + "' collider='" + xcollider + "' level=" + level.ToString("F2"));
+            // Pass-through hit. Log full state so we can see:
+            //   - both per-foot clock values (nearby cooldowns)
+            //   - global gap state
+            //   - other-side info for filter diagnosis
+            Debug(string.Format("HIT {0} v={1:F2} lClk={2:F2} rClk={3:F2} gClk={4:F2} → other='{5}' type='{6}' col='{7}'",
+                senderName, level, leftClock, rightClock, globalClock, xname, xtype, xcollider));
             RaeClickTouch(senderName, xname, xtype, xcollider, isRight);
         }
 
