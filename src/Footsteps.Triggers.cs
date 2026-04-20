@@ -41,16 +41,24 @@ namespace SPQR
             // Unity's overloaded == correctly reports true for destroyed objects.
             if (containingAtom == null) return;
 
-            if (myClock > 0f) return;
             if (e.evtType != customevent.EventType.HIT) return;
             if (e.insideTrigger) return;
 
             // Cheapest filter first: only foot rigidbodies are interesting. This
             // drops the firehose of thigh/shin/arm self-collisions silently,
-            // without spamming the debug log.
-            string senderName = sender.ToString().Replace(" (customevent.TriggerCollide)", "");
+            // without spamming the debug log. Use the TriggerCollide's
+            // GameObject name directly to avoid allocating a Replace() string
+            // for every collision.
+            TriggerCollide tc = sender as TriggerCollide;
+            string senderName = tc != null ? tc.gameObject.name : sender.ToString().Replace(" (customevent.TriggerCollide)", "");
             if (variableThisElements.Length > 0 && Array.IndexOf(variableThisElements, senderName) == -1)
                 return;
+
+            // Per-foot cooldown gate. Right and left have independent clocks so
+            // a simultaneous double-foot landing (jump, two-footed stomp) fires
+            // both sounds instead of just whichever one Unity dispatched first.
+            bool isRight = senderName == "rFoot" || senderName == "rToe" || senderName == "rBigToe";
+            if (isRight ? rightClock > 0f : leftClock > 0f) return;
 
             // Velocity gate. Log near-misses (level > 0 but below min) so users
             // can see "I almost stepped, lower Impact Min" — but skip the
@@ -95,13 +103,15 @@ namespace SPQR
             if (xname == containingAtom.name) return;
 
             Debug("ObserveTrigger: hit sender='" + senderName + "' other='" + xname + "' type='" + xtype + "' collider='" + xcollider + "' level=" + level.ToString("F2"));
-            RaeClickTouch(senderName, xname, xtype, xcollider);
+            RaeClickTouch(senderName, xname, xtype, xcollider, isRight);
         }
 
         // Apply the OTHER-side filters (atom type / atom name / collider name),
         // route to the appropriate side, fire the EventTriggers, play sound.
-        // Sender filter and self-collision are already handled by ObserveTrigger.
-        void RaeClickTouch(string sender, string name, string type, string collider)
+        // Sender filter, self-collision, and per-foot cooldown are already
+        // handled by ObserveTrigger. `isRight` is the side decision computed
+        // there, so we don't reclassify here.
+        void RaeClickTouch(string sender, string name, string type, string collider, bool isRight)
         {
             if (IsDisabled()) { Debug("RaeClickTouch: bailed (plugin disabled)"); return; }
 
@@ -112,20 +122,21 @@ namespace SPQR
             if (variableColliderElements.Length > 0 && Array.IndexOf(variableColliderElements, collider) == -1)
             { Debug("RaeClickTouch: bailed (other-collider '" + collider + "' not in Collider Element filter)"); return; }
 
-            if (sender == "rToe" || sender == "rBigToe" || sender == "rFoot")
+            if (isRight)
             {
                 collisionsPreview.val = "Right Foot";
                 FootstepsRight();
+                rightClock = jfloat2.val;
             }
             else
             {
                 collisionsPreview.val = "Left Foot";
                 FootstepsLeft();
+                leftClock = jfloat2.val;
             }
 
             dtext4.backgroundColor = new Color(0.33f, 1f, 0.33f, 0.7f);
             StartCoroutine(CoroutineFlashTrigger());
-            myClock = jfloat2.val;
         }
 
         void Trigger()      { myEventTrigger.Trigger(); }

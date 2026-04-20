@@ -21,14 +21,17 @@ namespace SPQR
         EventTrigger myEventTriggerLeft;   // left-foot step
         EventTrigger myEventTriggerRight;  // right-foot step
 
-        // Step-detection thresholds and post-step cooldown gate (`myClock`
-        // counts down so we don't fire twice per heel-strike when the foot
-        // rebounds against the floor).
+        // Step-detection thresholds and post-step cooldown gate. Each foot has
+        // its OWN cooldown clock — a double-foot landing (jump, two-footed
+        // stomp) needs both feet to fire, not just one. The "Cooldown" slider
+        // sets the per-foot cooldown duration; the leftClock/rightClock fields
+        // tick down independently in Update().
         JSONStorableFloat treshold1;
         JSONStorableFloat treshold2;
         JSONStorableFloat jfloat2;
         float collisionCooldown = 0.3f;
-        float myClock = -1.0f;
+        float leftClock = -1.0f;
+        float rightClock = -1.0f;
 
         // Audio knobs surfaced to the user. Read on every PlayOneShot so
         // slider moves take effect on the next step without a callback.
@@ -279,10 +282,11 @@ namespace SPQR
             myEventTrigger.Update();
             myEventTriggerLeft.Update();
             myEventTriggerRight.Update();
-            if (myClock < 0.0f)
-                return;
 
-            myClock -= Time.deltaTime;
+            // Tick down both per-foot cooldowns independently. Stop decrementing
+            // once a clock hits 0 so it doesn't drift arbitrarily negative.
+            if (leftClock > 0f)  leftClock  -= Time.deltaTime;
+            if (rightClock > 0f) rightClock -= Time.deltaTime;
         }
 
         public bool IsDisabled()
