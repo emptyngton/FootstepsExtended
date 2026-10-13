@@ -6,7 +6,7 @@ using Random2 = UnityEngine.Random;
 using MacGruber;
 using MVR.FileManagementSecure;
 
-namespace SPQR
+namespace Lapiro
 {
     public partial class Footsteps : MVRScript
     {

@@ -1,6 +1,6 @@
 using System.Linq;
 
-namespace SPQR
+namespace Lapiro
 {
     public partial class Footsteps : MVRScript
     {

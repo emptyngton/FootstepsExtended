@@ -24,6 +24,7 @@ Modified by Lapiro, 2026. Changes from the upstream v2 release:
     "FootstepsSFX/" so this fork's audio doesn't collide with the
     upstream SPQR.Footsteps .var if both are installed at once.
   - Repackaged under the namespace Lapiro.FootstepsExtended.
+  - v3: plugin class moved to the Lapiro namespace.
   - Source code reorganised into partial-class files
     (Footsteps.Core.cs, .UI.cs, .Audio.cs, .Triggers.cs) — no behaviour change.
 

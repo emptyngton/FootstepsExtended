@@ -68,8 +68,6 @@ jobs:
           body: |
             **FootstepsExtended** is a footstep audio plugin for Virt-A-Mate Person atoms. Detects when feet contact surfaces and plays surface-appropriate sound samples — boots on wood, bare feet on carpet, heels on tile, etc.
 
-            > Original *Footsteps* plugin and audio samples by **SPQR** (CC BY 4.0). This package is a rework.
-
             ## Features
 
             - 24 built-in surfaces with hundreds of audio samples

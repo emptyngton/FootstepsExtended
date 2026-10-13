@@ -2,8 +2,6 @@
 
 A footstep audio plugin for [Virt-a-Mate](https://virtamate.com/). Detects when a Person atom's feet make contact with surfaces and plays surface-appropriate sound samples — boots on wood, bare feet on carpet, sneakers on concrete, and so on.
 
-> **Credits:** the original *Footsteps* plugin and audio samples are by **SPQR** (CC BY 4.0). This package is a rework of that plugin maintained by Lapiro. All footstep audio shipped here originates from SPQR's library. See [LICENSE](LICENSE) for full attribution.
-
 ## Features
 
 - **24 built-in surfaces** — boots, barefoot, socks, sneak, carpet, concrete, dirt, grass, gravel, gritty, hard, heels (×5), ice, squeaky, step, wood (×3), and more
@@ -95,11 +93,10 @@ The four `Footsteps.*.cs` files declare `partial class Footsteps : MVRScript` �
 
 ## Credits
 
-- **SPQR** — original Footsteps plugin and all bundled audio samples, licensed CC BY 4.0. [Patreon](https://www.patreon.com/SPQR_aeternum)
 - **MacGruber** — `MacGruber_Utils.cs` (UI / EventTrigger helpers)
 - **geesp0t** — collision-trigger reference (per upstream credits)
 - **AcidBubbles** — collision groundwork (per upstream credits)
-- **Lapiro** — this rework
+- **Lapiro** — author
 
 ## License
 

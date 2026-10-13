@@ -6,7 +6,7 @@ using SimpleJSON;
 using MacGruber;
 using customevent;
 
-namespace SPQR
+namespace Lapiro
 {
     public partial class Footsteps : MVRScript
     {
@@ -184,7 +184,7 @@ namespace SPQR
             testRightBtn.button.onClick.AddListener(() => TestStep(true));
 
             // --- Filter fields (registered but not rendered — kept hidden the
-            // same way SPQR's original did. Storables persist in scene JSON so
+            // same way the original plugin did. Storables persist in scene JSON so
             // power users can still edit values via plugin parameter triggers
             // or by hand-editing the scene file). ---
             variableThisElement = new JSONStorableString("Element:", "rFoot|lFoot", UpdateVarValue);
@@ -192,7 +192,7 @@ namespace SPQR
             RegisterString(variableThisElement);
 
             // Collider Group filter is empty by default — matches any atom
-            // type. SPQR's original default ("Slate|Floor|WoodPanel|...") was
+            // type. The original plugin's default ("Slate|Floor|WoodPanel|...") was
             // exact-match against the parent atom's TYPE, which broke the
             // common case of a panel wrapped inside an Empty parent atom or
             // a Subscene (the wrapper's type is "Empty"/"SubScene", not

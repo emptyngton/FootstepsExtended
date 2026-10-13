@@ -4,7 +4,7 @@ using System.Linq;
 using UnityEngine;
 using customevent;
 
-namespace SPQR
+namespace Lapiro
 {
     public partial class Footsteps : MVRScript
     {
