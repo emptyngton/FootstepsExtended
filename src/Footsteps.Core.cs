@@ -344,6 +344,10 @@ namespace Lapiro
 
         void OnEnable()
         {
+            // VaM adds the plugin component before it assigns containingAtom and
+            // calls Init(), and Unity fires OnEnable during AddComponent. That first
+            // call has no atom and no storables yet; Start() does the setup instead.
+            if (containingAtom == null) return;
             RefreshColliders();
             updateVariables();
         }
